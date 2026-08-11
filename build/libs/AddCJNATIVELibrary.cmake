@@ -750,10 +750,9 @@ if(NOT CANGJIE_CJPM_BUILD_TYPE AND NOT CANGJIE_BUILD_WITHOUT_CHIR
             CANGJIE_STD_LIB_LINK std-core std-ast std-collection std-convert
             OBJECTS ${output_cj_object_dir}/stdx/plugin.o)
 
-        # Compile-time macro for host cjc must live under modules/ next to stdx.plugin.cjo.
-        # Native: same arch as shipped lib-macro — stage by copy (no second --compile-macro).
-        # Cross: host cjc cannot load target DLL — build host-arch deps + --compile-macro.
-        if(CMAKE_CROSSCOMPILING)
+        # Compile-time macro for host cjc lives in the isolated host closure whenever an
+        # explicit host SDK is provided; the shipped target libraries remain under lib/.
+        if(STDX_HOST_CLOSURE_ENABLED)
             make_host_cangjie_shared_lib(
                 chir
                 SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/stdx/chir
@@ -767,6 +766,7 @@ if(NOT CANGJIE_CJPM_BUILD_TYPE AND NOT CANGJIE_BUILD_WITHOUT_CHIR
                 DEPENDS cangjie${BACKEND_TYPE}PluginManager host_stdx_chir)
             add_cangjie_macro_library_in_local(
                 cangjie${BACKEND_TYPE}PluginMacroHost
+                HOST_CLOSURE
                 PACKAGE_NAME "plugin"
                 MODULE_NAME "stdx"
                 SOURCES ${PLUGIN_SRCS}
