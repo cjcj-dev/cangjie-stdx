@@ -6,15 +6,22 @@
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 # Host-arch shared libraries for macros loaded by host cjc while producing target packages.
-# Needed whenever CMAKE_CROSSCOMPILING (cross-OS or same-OS different arch): host cjc cannot
-# dlopen target-arch shared libraries.
+# The host SDK is explicit because a native target can still use a different runtime ABI.
 
+set(STDX_HOST_CLOSURE_ENABLED FALSE)
 set(STDX_HOST_STDX_LIB_DIR "")
 set(STDX_HOST_RUNTIME_LIB_DIR "")
 # STDX_HOST_SHLIB_SUFFIX / STDX_HOST_LIB_PATH_ENV / STDX_HOST_PATH_SEP are set in
 # AddCangjieSource.cmake (always host platform).
 
-if(CMAKE_CROSSCOMPILING)
+if(DEFINED ENV{STDX_HOST_CANGJIE_HOME} AND NOT "$ENV{STDX_HOST_CANGJIE_HOME}" STREQUAL "")
+    set(STDX_HOST_CLOSURE_ENABLED TRUE)
+    set(STDX_HOST_CANGJIE_HOME "$ENV{STDX_HOST_CANGJIE_HOME}")
+elseif(CMAKE_CROSSCOMPILING)
+    message(FATAL_ERROR "STDX_HOST_CANGJIE_HOME must name the host SDK when cross-compiling")
+endif()
+
+if(STDX_HOST_CLOSURE_ENABLED)
     set(_stdx_host_proc "${CMAKE_HOST_SYSTEM_PROCESSOR}")
     if(_stdx_host_proc STREQUAL "AMD64")
         set(_stdx_host_proc "x86_64")
@@ -23,20 +30,20 @@ if(CMAKE_CROSSCOMPILING)
     endif()
     string(TOLOWER "${CMAKE_HOST_SYSTEM_NAME}_${_stdx_host_proc}" _stdx_host_triple_dir)
     set(STDX_HOST_CJ_LIB_DIR "${_stdx_host_triple_dir}_cjnative")
-    set(STDX_HOST_STDX_LIB_DIR "${CMAKE_BINARY_DIR}/lib/${STDX_HOST_CJ_LIB_DIR}")
-    set(STDX_HOST_STDX_MOD_DIR "${CMAKE_BINARY_DIR}/modules/${STDX_HOST_CJ_LIB_DIR}/stdx")
+    set(STDX_HOST_CLOSURE_ROOT "${CMAKE_BINARY_DIR}/host-closure")
+    set(STDX_HOST_STDX_LIB_DIR "${STDX_HOST_CLOSURE_ROOT}/lib/${STDX_HOST_CJ_LIB_DIR}")
+    set(STDX_HOST_CANGJIE_PATH "${STDX_HOST_CLOSURE_ROOT}/modules/${STDX_HOST_CJ_LIB_DIR}")
+    set(STDX_HOST_STDX_MOD_DIR "${STDX_HOST_CANGJIE_PATH}/stdx")
     # Host macros dlopen host libcangjie-*.so; always point at host runtime, not target.
-    set(STDX_HOST_RUNTIME_LIB_DIR "$ENV{CANGJIE_HOME}/runtime/lib/${STDX_HOST_CJ_LIB_DIR}")
-
-    if(NOT DEFINED ENV{CANGJIE_HOME} OR "$ENV{CANGJIE_HOME}" STREQUAL "")
-        message(FATAL_ERROR "CANGJIE_HOME must be set when CMAKE_CROSSCOMPILING (host shared libs)")
-    endif()
-    set(STDX_HOST_CANGJIE_HOME "$ENV{CANGJIE_HOME}")
+    set(STDX_HOST_RUNTIME_LIB_DIR "${STDX_HOST_CANGJIE_HOME}/runtime/lib/${STDX_HOST_CJ_LIB_DIR}")
     set(STDX_HOST_CJ_LIB_PATH "${STDX_HOST_CANGJIE_HOME}/lib/${STDX_HOST_CJ_LIB_DIR}")
     set(STDX_HOST_RUNTIME_LIB_PATH "${STDX_HOST_CANGJIE_HOME}/runtime/lib/${STDX_HOST_CJ_LIB_DIR}")
 
     find_program(STDX_HOST_C_COMPILER NAMES clang gcc cc REQUIRED)
-    find_program(STDX_HOST_CJC NAMES cjc REQUIRED)
+    set(STDX_HOST_CJC "${STDX_HOST_CANGJIE_HOME}/bin/cjc")
+    if(NOT EXISTS "${STDX_HOST_CJC}")
+        message(FATAL_ERROR "host cjc not found: ${STDX_HOST_CJC}")
+    endif()
     # Host archive tool (must match the host that produces .a via host cjc), not CMAKE_AR
     # which may point at the cross-target llvm-ar.
     find_program(STDX_HOST_AR NAMES ar llvm-ar REQUIRED)
@@ -120,6 +127,8 @@ if(CMAKE_CROSSCOMPILING)
         set(_target_cangjie_path "${CMAKE_BINARY_DIR}/modules/${_target_cj_lib_dir}")
         set(_host_library_path
             "${CMAKE_BINARY_DIR}/lib${STDX_HOST_PATH_SEP}$ENV{LIBRARY_PATH}")
+        set(_host_loader_path
+            "${STDX_HOST_STDX_LIB_DIR}${STDX_HOST_PATH_SEP}${STDX_HOST_RUNTIME_LIB_DIR}${STDX_HOST_PATH_SEP}$ENV{${STDX_HOST_LIB_PATH_ENV}}")
 
         # With VERBATIM, write "-L${path}" (quotes are CMake delimiters). Do not use
         # -L"${path}" — that embeds literal quotes into the linker argument.
@@ -131,6 +140,7 @@ if(CMAKE_CROSSCOMPILING)
             COMMAND ${CMAKE_COMMAND} -E env
                 "CANGJIE_PATH=${_target_cangjie_path}"
                 "LIBRARY_PATH=${_host_library_path}"
+                "${STDX_HOST_LIB_PATH_ENV}=${_host_loader_path}"
                 ${STDX_HOST_CJC}
                 --no-sub-pkg
                 --trimpath ${CMAKE_SOURCE_DIR}/src/

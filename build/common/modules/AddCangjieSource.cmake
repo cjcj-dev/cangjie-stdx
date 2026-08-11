@@ -61,6 +61,7 @@ endfunction()
 
 function(add_cangjie_macro_library_in_local target_name)
     set(options
+        HOST_CLOSURE
         NO_SUB_PKG
         INSTALL)
     set(one_value_args
@@ -79,7 +80,14 @@ function(add_cangjie_macro_library_in_local target_name)
 
     # Do not use ${CMAKE_EXECUTABLE_SUFFIX} here, because its value is determined by the target platform, not the host.
     # Determine the suffix according to the host instead.
-    set(cangjie_compiler_tool "cjc$<$<BOOL:${CMAKE_HOST_WIN32}>:.exe>")
+    if(CANGJIELIB_HOST_CLOSURE)
+        if(NOT STDX_HOST_CLOSURE_ENABLED)
+            message(FATAL_ERROR "HOST_CLOSURE requires STDX_HOST_CANGJIE_HOME")
+        endif()
+        set(cangjie_compiler_tool "${STDX_HOST_CJC}")
+    else()
+        set(cangjie_compiler_tool "cjc$<$<BOOL:${CMAKE_HOST_WIN32}>:.exe>")
+    endif()
 
     # Set no-sub-pkg
     if(CANGJIELIB_NO_SUB_PKG)
@@ -91,7 +99,11 @@ function(add_cangjie_macro_library_in_local target_name)
     set(BACKEND "cjnative")
     string(TOLOWER "${TARGET_TRIPLE_DIRECTORY_PREFIX}_${BACKEND}" output_cj_lib_dir)
     set(_stdx_dylib_dir "${CMAKE_BINARY_DIR}/lib/${output_cj_lib_dir}${SANITIZER_SUBPATH}")
-    set(output_dir "${CMAKE_BINARY_DIR}/${CANGJIE_LIB_DIR}/${TARGET_TRIPLE_DIRECTORY_PREFIX}_${BACKEND}/${CANGJIELIB_MODULE_NAME}/${CANGJIELIB_OUTPUT_DIR}")
+    if(CANGJIELIB_HOST_CLOSURE)
+        set(output_dir "${STDX_HOST_STDX_MOD_DIR}")
+    else()
+        set(output_dir "${CMAKE_BINARY_DIR}/${CANGJIE_LIB_DIR}/${TARGET_TRIPLE_DIRECTORY_PREFIX}_${BACKEND}/${CANGJIELIB_MODULE_NAME}/${CANGJIELIB_OUTPUT_DIR}")
+    endif()
 
     set(full_package_name "${CANGJIELIB_PACKAGE_NAME}")
     if(NOT ("${CANGJIELIB_MODULE_NAME}" STREQUAL ""))
@@ -108,9 +120,9 @@ function(add_cangjie_macro_library_in_local target_name)
         --output-dir ${output_dir}
         -p ${CANGJIELIB_SOURCE_DIR})
     # Macro libraries are loaded by host cjc at compile time; never cross-compile them.
-    # When cross-compiling, STDX_HOST_* is set (see MakeHostCJNATIVESharedLib.cmake).
+    # HOST_CLOSURE selects the separately built host stdx libraries.
     if(CANGJIELIB_LINK_LIBS)
-        if(CMAKE_CROSSCOMPILING)
+        if(CANGJIELIB_HOST_CLOSURE)
             list(APPEND COMPILE_CMD -L "${STDX_HOST_STDX_LIB_DIR}" ${CANGJIELIB_LINK_LIBS})
         else()
             list(APPEND COMPILE_CMD -L "${_stdx_dylib_dir}" ${CANGJIELIB_LINK_LIBS})
@@ -138,7 +150,7 @@ function(add_cangjie_macro_library_in_local target_name)
     set(_macro_library_path "${CMAKE_BINARY_DIR}/lib")
     set(_macro_compile_env
         "CANGJIE_PATH=${CMAKE_BINARY_DIR}/modules/${output_cj_lib_dir}")
-    if(CMAKE_CROSSCOMPILING AND CANGJIELIB_LINK_LIBS)
+    if(CANGJIELIB_HOST_CLOSURE AND CANGJIELIB_LINK_LIBS)
         # Prefer host stdx + host runtime so dlopen(lib-macro_*.so) can resolve libcangjie-*.so.
         set(_macro_library_path "${STDX_HOST_STDX_LIB_DIR}${STDX_HOST_PATH_SEP}${_macro_library_path}")
         set(_macro_host_ld_path
@@ -151,7 +163,7 @@ function(add_cangjie_macro_library_in_local target_name)
     # cjc --compile-macro links against stdx dylibs with @rpath install names but does not
     # set LC_RPATH. On macOS, stage plugin.manager next to the macro and add @loader_path.
     if(DARWIN AND CANGJIELIB_LINK_LIBS)
-        if(CMAKE_CROSSCOMPILING)
+        if(CANGJIELIB_HOST_CLOSURE)
             set(_plugin_manager_dylib "${STDX_HOST_STDX_LIB_DIR}/libstdx.plugin.manager${STDX_HOST_SHLIB_SUFFIX}")
         else()
             set(_plugin_manager_dylib "${_stdx_dylib_dir}/libstdx.plugin.manager${CMAKE_SHARED_LIBRARY_SUFFIX}")
@@ -327,9 +339,11 @@ function(add_cangjie_library target_name
     string(TOLOWER ${TARGET_TRIPLE_DIRECTORY_PREFIX}_${BACKEND} output_cj_lib_dir)
     if(CANGJIELIB_LINK_MACRO_LIBS)
         set(_compile_stdx_dylib_dir "${CMAKE_BINARY_DIR}/lib/${output_cj_lib_dir}${SANITIZER_SUBPATH}")
-        # Host macros live next to the compile cwd / modules; also search host lib dir when cross-compiling.
-        if(CMAKE_CROSSCOMPILING)
-            list(APPEND COMPILE_CMD -L "${STDX_HOST_STDX_LIB_DIR}")
+        # Host macros and their host-only dependencies precede target publication paths.
+        if(STDX_HOST_CLOSURE_ENABLED)
+            list(APPEND COMPILE_CMD
+                -L "${STDX_HOST_STDX_LIB_DIR}"
+                -L "${STDX_HOST_STDX_MOD_DIR}")
         endif()
         list(APPEND COMPILE_CMD
             -L "${_compile_stdx_dylib_dir}"
@@ -365,15 +379,20 @@ function(add_cangjie_library target_name
 
     cj_resolve_depends(resolved_depends ${CANGJIELIB_DEPENDS})
 
+    set(_cj_compile_path "${CMAKE_BINARY_DIR}/modules/${output_cj_lib_dir}")
+    if(STDX_HOST_CLOSURE_ENABLED AND CANGJIELIB_LINK_MACRO_LIBS)
+        set(_cj_compile_path
+            "${STDX_HOST_CANGJIE_PATH}${STDX_HOST_PATH_SEP}${_cj_compile_path}")
+    endif()
     set(_cj_lib_compile_env
-        "CANGJIE_PATH=${CMAKE_BINARY_DIR}/modules/${output_cj_lib_dir}"
+        "CANGJIE_PATH=${_cj_compile_path}"
         "LIBRARY_PATH=${CMAKE_BINARY_DIR}/lib")
     if(CANGJIELIB_LINK_MACRO_LIBS)
         set(_cj_stdx_dylib_dir "${CMAKE_BINARY_DIR}/lib/${output_cj_lib_dir}${SANITIZER_SUBPATH}")
         set(_cj_runtime_lib_dir "$ENV{CANGJIE_HOME}/runtime/lib/${output_cj_lib_dir}${SANITIZER_SUBPATH}")
         # Host cjc loads host macros; put host stdx/runtime before target paths.
         set(_cj_host_lib_prefix "")
-        if(CMAKE_CROSSCOMPILING)
+        if(STDX_HOST_CLOSURE_ENABLED)
             set(_cj_host_lib_prefix
                 "${STDX_HOST_STDX_LIB_DIR}${STDX_HOST_PATH_SEP}${STDX_HOST_RUNTIME_LIB_DIR}${STDX_HOST_PATH_SEP}")
         endif()
@@ -383,8 +402,13 @@ function(add_cangjie_library target_name
 
     if(NOT CMAKE_BUILD_STAGE STREQUAL "postBuild")
         if(CANGJIELIB_LINK_MACRO_LIBS AND APPLE)
-            set(_cj_plugin_manager_dylib
-                "${CMAKE_BINARY_DIR}/lib/${output_cj_lib_dir}${SANITIZER_SUBPATH}/libstdx.plugin.manager${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            if(STDX_HOST_CLOSURE_ENABLED)
+                set(_cj_plugin_manager_dylib
+                    "${STDX_HOST_STDX_LIB_DIR}/libstdx.plugin.manager${STDX_HOST_SHLIB_SUFFIX}")
+            else()
+                set(_cj_plugin_manager_dylib
+                    "${CMAKE_BINARY_DIR}/lib/${output_cj_lib_dir}${SANITIZER_SUBPATH}/libstdx.plugin.manager${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            endif()
             add_custom_command(
                 OUTPUT ${output_full_name}
                 COMMAND ${CMAKE_COMMAND} -E make_directory ${output_dir}
