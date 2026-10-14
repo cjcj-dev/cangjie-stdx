@@ -115,6 +115,14 @@ public class Tar {
                 throw TarException("Zip Slip detected: ${entry.name}.")
             }
 
+            let parentDir = entryPath.parent
+            // Resolve and validate the parent directory before performing any file system
+            // mutation. This must happen before remove(entryPath): if an existing ancestor
+            // of parentDir is a symbolic link pointing outside the extraction root, the
+            // resolved parentDir escapes destDir and removing entryPath through that
+            // symlinked parent would delete a file outside destDir.
+            ensureRegularFileParentWithinDirectory(parentDir, destAbsoluteDir, entry.name)
+
             if (exists(entryPath)) {
                 if (!overwrite) {
                     throw TarException("File ${entryPath} already exists and overwrite is false.")
@@ -124,27 +132,16 @@ public class Tar {
                 }
             }
 
-            // check slip for both file and directory
-            match (entry.entryType) {
-                case TarEntryType.RegularFile | TarEntryType.V7RegularFile | TarEntryType.ContiguousFile
-                    | TarEntryType.Directory =>
-                    let parentDir = entryPath.parent
-                    // For the first time, before creating the parent directory, prevent existing symlinks.
-                    // For example, if an existing ancestor of parentDir is a symbolic link pointing outside the
-                    // directory, even if parentDir lexically appears to be within the extraction root,
-                    // after actual resolution, it will have escaped outside.
-                    ensureRegularFileParentWithinDirectory(parentDir, destAbsoluteDir, entry.name)
-                    if (!parentDir.isEmpty() && !exists(parentDir)) {
-                        Directory.create(parentDir, recursive: true)
-                    }
-                    // The second time after executing Directory.create(parentDir, recursive: true), the result of
-                    // preventing creation is inconsistent with expectations. Although under normal circumstances,
-                    // the newly created directory is still within the root, after creation, performing a canonicalize
-                    // check on the complete parentDir can ensure that the final actual parent directory has not been
-                    // redirected before proceeding with file writing.
-                    ensureRegularFileParentWithinDirectory(parentDir, destAbsoluteDir, entry.name)
-                case _ => ()
+            if (!parentDir.isEmpty() && !exists(parentDir)) {
+                Directory.create(parentDir, recursive: true)
             }
+            // Re-validate the parent directory after Directory.create(parentDir, recursive: true).
+            // Under normal circumstances the newly created directory is still within the root,
+            // but performing a canonicalize check on the complete parentDir ensures the final
+            // actual parent directory has not been redirected before proceeding with the
+            // creation of the entry. This applies to regular files, directories as well as
+            // symlink and hard link entries.
+            ensureRegularFileParentWithinDirectory(parentDir, destAbsoluteDir, entry.name)
 
             match (entry.entryType) {
                 case TarEntryType.Directory =>
