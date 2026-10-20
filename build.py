@@ -189,7 +189,7 @@ def build(args):
                 build_cmd.extend(["-j", str(args.jobs)])
         else:
             generator = "MinGW Makefiles"
-            build_cmd = ["mingw32-make", "-j" + str(MAKE_JOBS)]
+            build_cmd = ["mingw32-make", "-j" + str(args.jobs if args.jobs > 0 else MAKE_JOBS)]
     else:
         # For Linux, just use Ninja.
         generator = "Ninja"
