@@ -70,6 +70,33 @@ package/case controls pass, then restore source identity and recover. Further
 vtable/flag/intrinsic non-default consumption also requires actual execution.
 No dynamic field/cut/restore result is claimed by adding these test files.
 
+`schema_metadata.cj` is a separate main for the same real serializer/deserializer.
+It prepares four Lambda flag combinations, direct member outerDef references in
+a parent/child hierarchy, a forward parent reference, three nonempty vtable
+entries sharing signatures/generic/function references, and a null function.
+After the first deserialize it adds a function, removes the implementation's
+direct package-list entry while keeping its vtable references, and reorders
+definitions before serializing again. The real serializer queue must rediscover
+that function and assign changed IDs. It does not
+invent a different-container member as a compiler-supported inheritance case:
+f07c serializes a class's direct instance variables.
+
+`schema_metadata_reader.cpp BEFORE REMAPPED` checks both actual emitted buffers
+against the normally installed fixed compiler header. It resolves type/value/def
+references, checks every vtable field, all four Lambda combinations and 21 added
+intrinsic labels, and requires the child/implementation IDs to change between
+buffers. Its oracle is f07c schema and Serializer/Deserializer, not stdx's enum
+mapping. RAW is asserted for this buffer-plugin API only. No file-phase import
+support is inferred.
+
+The intrinsic nodes in this fixture exercise transport of the 21 tags only;
+their empty calls/unit results are not claims about valid lowering signatures
+or runnable intrinsic programs. Actual compiler-produced input and normal full
+stdx/plugin qualification remain separate requirements. Both CJ test programs
+are uncompiled/unexecuted while TASK20:32's runtime input is unresolved; compiling
+either independent C++ reader does not create CJ wire evidence. All prepared
+dynamic cases and their product cuts remain NOT_RUN.
+
 Observed on 2026-10-21: normal schema generation and macro compilation succeeded;
 public cjc compiling the CHIR package crashed in the installed runtime before
 field assertions. The fixed runtime input must be resolved by its owner before
