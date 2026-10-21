@@ -40,4 +40,30 @@ for(const file of ['serialize.cj','deserialize.cj']){
  }
 }
 assert.ok(rows.length>50,'the complete serializer API call set must be reached');
-console.log(JSON.stringify({method:'read',generatedFile,calls:rows.length,rows,limits:'No type inference or runtime/ABI qualification'},null,2));
+// Read the complete wire enum from actual flatc output. A missing arm in both
+// directions must fail too; checking only writer/reader agreement misses it.
+const serializer=fs.readFileSync(path.join(source,'serialize.cj'),'utf8');
+const deserializer=fs.readFileSync(path.join(source,'deserialize.cj'),'utf8');
+const representation=fs.readFileSync(path.join(source,'expression.cj'),'utf8');
+const enums=[];
+for(const name of ['IntrinsicKind','SourceExpr']){
+ const wire=generated.match(new RegExp('enum CHIRFormat_'+name+' \\{([^}]+)\\}'));
+ const internal=representation.match(new RegExp('internal enum '+name+' \\{([^}]+)\\}'));
+ assert.ok(wire&&internal,'enum definition '+name);
+ const variants=wire[1].trim().split(/\s*\|\s*/);
+ const represented=internal[1].split('|').map(s=>s.trim()).filter(Boolean);
+ const mapped=[];
+ for(const variant of variants){
+  const writer=new RegExp('case '+name+'\\.(\\w+) => CHIRFormat_'+name+'\\.'+variant+'\\b');
+  const reader=new RegExp('case CHIRFormat_'+name+'\\.'+variant+' => '+name+'\\.(\\w+)\\b');
+  const w=serializer.match(writer),r=deserializer.match(reader);
+  assert.ok(w,'missing writer '+variant);assert.ok(r,'missing reader '+variant);
+  assert.equal(w[1],r[1],'wire mapping '+variant);
+  assert.ok(represented.includes(w[1]),'missing internal variant '+w[1]);
+  mapped.push(w[1]);
+ }
+ assert.equal(new Set(mapped).size,variants.length,'distinct representations '+name);
+ assert.deepEqual([...mapped].sort(),[...represented].sort(),'complete representation '+name);
+ enums.push({name,wireVariants:variants.length});
+}
+console.log(JSON.stringify({method:'read',generatedFile,calls:rows.length,rows,enums,limits:'No type inference or runtime/ABI qualification'},null,2));

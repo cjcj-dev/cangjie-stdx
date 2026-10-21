@@ -338,7 +338,7 @@ class CHIRSerializerImpl {
         }
     }
 
-    // Dispatch Type: align to PackageFormat TypeElem (Type, RawArrayType, VArrayType, FuncType, CustomType, GenericType).
+    // Dispatch Type: align to CHIRFormat TypeElem (Type, RawArrayType, VArrayType, FuncType, CustomType, GenericType).
     private func dispatchType(obj: Type): UInt32 {
         let base = serializeType(obj)
         let typeId = getId(obj)
@@ -911,6 +911,10 @@ class CHIRSerializerImpl {
             case IntrinsicKind.IsPrimitive => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_PRIMITIVE
             case IntrinsicKind.IsStruct => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_STRUCT
             case IntrinsicKind.IsGeneric => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_GENERIC
+            case IntrinsicKind.IsTuple => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_TUPLE
+            case IntrinsicKind.IsFunction => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_FUNCTION
+            case IntrinsicKind.IsEnum => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_ENUM
+            case IntrinsicKind.IsBox => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_BOX
             case IntrinsicKind.GetOrCreateTypeInfoForReflect => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_OR_CREATE_TYPEINFO_FOR_REFLECT
             case IntrinsicKind.GetTypeTemplate => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_TYPETEMPLATE
             case IntrinsicKind.CheckMethodActualArgs => CHIRFormat_IntrinsicKind.IntrinsicKind_CHECK_METHOD_ACTUAL_ARGS
@@ -929,6 +933,7 @@ class CHIRSerializerImpl {
             case IntrinsicKind.GetTypeInfoAnnotations => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_TYPE_INFO_ANNOTATIONS
             case IntrinsicKind.GetObjClass => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_OBJ_CLASS
             case IntrinsicKind.GetSuperTypeInfo => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_SUPER_TYPE_INFO
+            case IntrinsicKind.GetTypeArgs => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_TYPE_ARGS
             case IntrinsicKind.GetNumOfInstanceMethodInfos => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_INSTANCE_METHOD_INFOS
             case IntrinsicKind.GetInstanceMethodInfo => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_METHOD_INFO
             case IntrinsicKind.GetNumOfStaticMethodInfos => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_STATIC_METHOD_INFOS
@@ -952,6 +957,10 @@ class CHIRSerializerImpl {
             case IntrinsicKind.GetStaticFieldName => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_STATIC_FIELD_NAME
             case IntrinsicKind.GetStaticFieldType => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_STATIC_FIELD_TYPE
             case IntrinsicKind.GetStaticFieldAnnotations => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_STATIC_FIELD_ANNOTATIONS
+            case IntrinsicKind.GetInstanceFieldName => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_FIELD_NAME
+            case IntrinsicKind.GetInstanceFieldType => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_FIELD_TYPE
+            case IntrinsicKind.GetInstanceFieldAnnotations => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_FIELD_ANNOTATIONS
+            case IntrinsicKind.GetInstanceFieldModifier => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_FIELD_MODIFIER
             case IntrinsicKind.GetStaticFieldModifier => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_STATIC_FIELD_MODIFIER
             case IntrinsicKind.GetFieldValue => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_FIELD_VALUE
             case IntrinsicKind.SetFieldValue => CHIRFormat_IntrinsicKind.IntrinsicKind_SET_FIELD_VALUE
@@ -974,6 +983,16 @@ class CHIRSerializerImpl {
             case IntrinsicKind.GetPackageByQualifiedName => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_PACKAGE_BY_QUALIFIEDNAME
             case IntrinsicKind.GetPackageVersion => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_PACKAGE_VERSION
             case IntrinsicKind.GetSubPackages => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_SUB_PACKAGES
+            case IntrinsicKind.GetNumOfFieldTypes => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_FIELD_TYPES
+            case IntrinsicKind.GetFieldTypes => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_FIELD_TYPES
+            case IntrinsicKind.NewAndInitObject => CHIRFormat_IntrinsicKind.IntrinsicKind_NEW_AND_INIT_OBJECT
+            case IntrinsicKind.GetAssociatedValues => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_ASSOCIATED_VALUES
+            case IntrinsicKind.GetNumOfFunctionSignatureTypes => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_FUNCTION_SIGNATURETYPES
+            case IntrinsicKind.GetFunctionSignatureTypes => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_FUNCTION_SIGNATURE_TYPES
+            case IntrinsicKind.GetNumOfEnumConstructorInfos => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_ENUM_CONSTRUCTOR_INFOS
+            case IntrinsicKind.GetEnumConstructorInfo => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_ENUM_CONSTRUCTOR_INFO
+            case IntrinsicKind.GetEnumConstructorName => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_ENUM_CONSTRUCTOR_NAME
+            case IntrinsicKind.GetEnumConstructorInfoFromAny => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_ENUM_CONSTRUCTOR_INFO_FROM_ANY
             case IntrinsicKind.ReflectionIntrinsicEndFlag => CHIRFormat_IntrinsicKind.IntrinsicKind_REFLECTION_INTRINSIC_END_FLAG
             case IntrinsicKind.Sleep => CHIRFormat_IntrinsicKind.IntrinsicKind_SLEEP
             case IntrinsicKind.SourceFile => CHIRFormat_IntrinsicKind.IntrinsicKind_SOURCE_FILE
@@ -1006,6 +1025,7 @@ class CHIRSerializerImpl {
             case IntrinsicKind.CreateExportHandle => CHIRFormat_IntrinsicKind.IntrinsicKind_CREATE_EXPORT_HANDLE
             case IntrinsicKind.GetExportedRef => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_EXPORTED_REF
             case IntrinsicKind.RemoveExportedRef => CHIRFormat_IntrinsicKind.IntrinsicKind_REMOVE_EXPORTED_REF
+            case IntrinsicKind.GetJsLambdaAddr => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_JSLAMBDA_ADDR
             case IntrinsicKind.FfiCjAstLex => CHIRFormat_IntrinsicKind.IntrinsicKind_FFI_CJ_AST_LEX
             case IntrinsicKind.FfiCjAstParseExpr => CHIRFormat_IntrinsicKind.IntrinsicKind_FFI_CJ_AST_PARSEEXPR
             case IntrinsicKind.FfiCjAstParseDecl => CHIRFormat_IntrinsicKind.IntrinsicKind_FFI_CJ_AST_PARSEDECL
@@ -1137,6 +1157,7 @@ class CHIRSerializerImpl {
             case IntrinsicKind.IsNull => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_NULL
             case IntrinsicKind.GetTypeForTypeParameter => CHIRFormat_IntrinsicKind.IntrinsicKind_GET_TYPE_FOR_TYPE_PARAMETER
             case IntrinsicKind.IsSubtypeTypes => CHIRFormat_IntrinsicKind.IntrinsicKind_IS_SUBTYPE_TYPES
+            case IntrinsicKind.ExclusiveScope => CHIRFormat_IntrinsicKind.IntrinsicKind_EXCLUSIVE_SCOPE
         }
     }
 
@@ -1297,6 +1318,21 @@ class CHIRSerializerImpl {
         )
     }
 
+    private func serializeVirtualMethodInfo(obj: VirtualMethodInfo): UInt32 {
+        let name = fbBuilder.createString(obj.funcName)
+        let params = Array<UInt32>(obj.methodGenericTypeParams.size, { i => getId(obj.methodGenericTypeParams[i]) })
+        let paramsVec = if (params.isEmpty()) { UInt32(0) } else { fbBuilder.createUInt32Vector(params) }
+        let instance = if (let Some(v) <- obj.instance) { getId(v) } else { UInt32(0) }
+        return CHIRFormat_VirtualMethodInfo.createVirtualMethodInfo(fbBuilder, name, getId(obj.sigType),
+            paramsVec, instance, obj.attributes, getId(obj.originalType), getId(obj.parentType), getId(obj.returnType))
+    }
+
+    private func serializeVTableInType(obj: VTableInType): UInt32 {
+        let methods = Array<UInt32>(obj.virtualMethods.size, { i => serializeVirtualMethodInfo(obj.virtualMethods[i]) })
+        let methodsVec = if (methods.isEmpty()) { UInt32(0) } else { fbBuilder.createVectorOfTables(methods) }
+        return CHIRFormat_VTableInType.createVTableInType(fbBuilder, getId(obj.srcParentType), methodsVec)
+    }
+
     private func serializeCustomTypeDef(obj: CustomTypeDef): UInt32 {
         let base = serializeBase(obj)
         let kind = serializeCustomDefKind(obj._kind)
@@ -1313,7 +1349,8 @@ class CHIRSerializerImpl {
         let staticMemberVars = Array<UInt32>(obj.staticVars.size, { i => getId(obj.staticVars[i]) })
         let staticMemberVarsVec = if (staticMemberVars.isEmpty()) { UInt32(0) } else { fbBuilder.createUInt32Vector(staticMemberVars) }
         let annoInfo: UInt32 = serializeAnnoInfo(obj._annoInfo)
-        let vtableVec: UInt32 = 0
+        let vtable = Array<UInt32>(obj._vtable.size, { i => serializeVTableInType(obj._vtable[i]) })
+        let vtableVec = if (vtable.isEmpty()) { UInt32(0) } else { fbBuilder.createVectorOfTables(vtable) }
         let varInitializationFunc: UInt32 = if (let Some(v) <- obj._instanceVarInitFunc) { getId(v) } else { UInt32(0) }
         let implementedInterfaces = Array<UInt32>(obj.implementedInterfaceTypes.size, { i => getId(obj.implementedInterfaceTypes[i]) })
         let implementedInterfacesVec = if (implementedInterfaces.isEmpty()) { UInt32(0) } else { fbBuilder.createUInt32Vector(implementedInterfaces) }

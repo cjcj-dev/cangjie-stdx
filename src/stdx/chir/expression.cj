@@ -321,6 +321,10 @@ internal enum IntrinsicKind {
     IsPrimitive |
     IsStruct |
     IsGeneric |
+    IsTuple |
+    IsFunction |
+    IsEnum |
+    IsBox |
     GetOrCreateTypeInfoForReflect |
     GetTypeTemplate |
     CheckMethodActualArgs |
@@ -339,6 +343,7 @@ internal enum IntrinsicKind {
     GetTypeInfoAnnotations |
     GetObjClass |
     GetSuperTypeInfo |
+    GetTypeArgs |
     GetNumOfInstanceMethodInfos |
     GetInstanceMethodInfo |
     GetNumOfStaticMethodInfos |
@@ -362,6 +367,10 @@ internal enum IntrinsicKind {
     GetStaticFieldName |
     GetStaticFieldType |
     GetStaticFieldAnnotations |
+    GetInstanceFieldName |
+    GetInstanceFieldType |
+    GetInstanceFieldAnnotations |
+    GetInstanceFieldModifier |
     GetStaticFieldModifier |
     GetFieldValue |
     SetFieldValue |
@@ -384,6 +393,16 @@ internal enum IntrinsicKind {
     GetPackageByQualifiedName |
     GetPackageVersion |
     GetSubPackages |
+    GetNumOfFieldTypes |
+    GetFieldTypes |
+    NewAndInitObject |
+    GetAssociatedValues |
+    GetNumOfFunctionSignatureTypes |
+    GetFunctionSignatureTypes |
+    GetNumOfEnumConstructorInfos |
+    GetEnumConstructorInfo |
+    GetEnumConstructorName |
+    GetEnumConstructorInfoFromAny |
     ReflectionIntrinsicEndFlag |
     Sleep |
     SourceFile |
@@ -416,6 +435,7 @@ internal enum IntrinsicKind {
     CreateExportHandle |
     GetExportedRef |
     RemoveExportedRef |
+    GetJsLambdaAddr |
     FfiCjAstLex |
     FfiCjAstParseExpr |
     FfiCjAstParseDecl |
@@ -546,7 +566,8 @@ internal enum IntrinsicKind {
     ObjectAs |
     IsNull |
     GetTypeForTypeParameter |
-    IsSubtypeTypes
+    IsSubtypeTypes |
+    ExclusiveScope
 }
 
 @Derive[Equatable]

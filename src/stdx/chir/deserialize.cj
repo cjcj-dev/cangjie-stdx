@@ -580,9 +580,10 @@ class CHIRDeserializerImpl {
         return localVar
     }
 
-    private func deserializeMemberVarInfo(memberVarInfoFormat: CHIRFormat_MemberVarInfo, outerDef: CustomTypeDef): MemberVar {
+    private func deserializeMemberVarInfo(memberVarInfoFormat: CHIRFormat_MemberVarInfo): MemberVar {
         let name = memberVarInfoFormat.GetName()
         let ty = getType(memberVarInfoFormat.GetType())
+        let outerDef = getCustomTypeDef(memberVarInfoFormat.GetOuterDef())
         let memberVar = MemberVar(name, ty, outerDef)
         
         // Set annoInfo
@@ -1117,6 +1118,10 @@ class CHIRDeserializerImpl {
             case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_PRIMITIVE => IntrinsicKind.IsPrimitive
             case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_STRUCT => IntrinsicKind.IsStruct
             case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_GENERIC => IntrinsicKind.IsGeneric
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_TUPLE => IntrinsicKind.IsTuple
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_FUNCTION => IntrinsicKind.IsFunction
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_ENUM => IntrinsicKind.IsEnum
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_BOX => IntrinsicKind.IsBox
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_OR_CREATE_TYPEINFO_FOR_REFLECT => IntrinsicKind.GetOrCreateTypeInfoForReflect
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_TYPETEMPLATE => IntrinsicKind.GetTypeTemplate
             case CHIRFormat_IntrinsicKind.IntrinsicKind_CHECK_METHOD_ACTUAL_ARGS => IntrinsicKind.CheckMethodActualArgs
@@ -1135,6 +1140,7 @@ class CHIRDeserializerImpl {
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_TYPE_INFO_ANNOTATIONS => IntrinsicKind.GetTypeInfoAnnotations
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_OBJ_CLASS => IntrinsicKind.GetObjClass
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_SUPER_TYPE_INFO => IntrinsicKind.GetSuperTypeInfo
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_TYPE_ARGS => IntrinsicKind.GetTypeArgs
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_INSTANCE_METHOD_INFOS => IntrinsicKind.GetNumOfInstanceMethodInfos
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_METHOD_INFO => IntrinsicKind.GetInstanceMethodInfo
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_STATIC_METHOD_INFOS => IntrinsicKind.GetNumOfStaticMethodInfos
@@ -1158,6 +1164,10 @@ class CHIRDeserializerImpl {
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_STATIC_FIELD_NAME => IntrinsicKind.GetStaticFieldName
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_STATIC_FIELD_TYPE => IntrinsicKind.GetStaticFieldType
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_STATIC_FIELD_ANNOTATIONS => IntrinsicKind.GetStaticFieldAnnotations
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_FIELD_NAME => IntrinsicKind.GetInstanceFieldName
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_FIELD_TYPE => IntrinsicKind.GetInstanceFieldType
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_FIELD_ANNOTATIONS => IntrinsicKind.GetInstanceFieldAnnotations
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_INSTANCE_FIELD_MODIFIER => IntrinsicKind.GetInstanceFieldModifier
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_STATIC_FIELD_MODIFIER => IntrinsicKind.GetStaticFieldModifier
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_FIELD_VALUE => IntrinsicKind.GetFieldValue
             case CHIRFormat_IntrinsicKind.IntrinsicKind_SET_FIELD_VALUE => IntrinsicKind.SetFieldValue
@@ -1180,6 +1190,16 @@ class CHIRDeserializerImpl {
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_PACKAGE_BY_QUALIFIEDNAME => IntrinsicKind.GetPackageByQualifiedName
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_PACKAGE_VERSION => IntrinsicKind.GetPackageVersion
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_SUB_PACKAGES => IntrinsicKind.GetSubPackages
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_FIELD_TYPES => IntrinsicKind.GetNumOfFieldTypes
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_FIELD_TYPES => IntrinsicKind.GetFieldTypes
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_NEW_AND_INIT_OBJECT => IntrinsicKind.NewAndInitObject
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_ASSOCIATED_VALUES => IntrinsicKind.GetAssociatedValues
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_FUNCTION_SIGNATURETYPES => IntrinsicKind.GetNumOfFunctionSignatureTypes
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_FUNCTION_SIGNATURE_TYPES => IntrinsicKind.GetFunctionSignatureTypes
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_NUM_OF_ENUM_CONSTRUCTOR_INFOS => IntrinsicKind.GetNumOfEnumConstructorInfos
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_ENUM_CONSTRUCTOR_INFO => IntrinsicKind.GetEnumConstructorInfo
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_ENUM_CONSTRUCTOR_NAME => IntrinsicKind.GetEnumConstructorName
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_ENUM_CONSTRUCTOR_INFO_FROM_ANY => IntrinsicKind.GetEnumConstructorInfoFromAny
             case CHIRFormat_IntrinsicKind.IntrinsicKind_REFLECTION_INTRINSIC_END_FLAG => IntrinsicKind.ReflectionIntrinsicEndFlag
             case CHIRFormat_IntrinsicKind.IntrinsicKind_SLEEP => IntrinsicKind.Sleep
             case CHIRFormat_IntrinsicKind.IntrinsicKind_SOURCE_FILE => IntrinsicKind.SourceFile
@@ -1212,6 +1232,7 @@ class CHIRDeserializerImpl {
             case CHIRFormat_IntrinsicKind.IntrinsicKind_CREATE_EXPORT_HANDLE => IntrinsicKind.CreateExportHandle
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_EXPORTED_REF => IntrinsicKind.GetExportedRef
             case CHIRFormat_IntrinsicKind.IntrinsicKind_REMOVE_EXPORTED_REF => IntrinsicKind.RemoveExportedRef
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_JSLAMBDA_ADDR => IntrinsicKind.GetJsLambdaAddr
             case CHIRFormat_IntrinsicKind.IntrinsicKind_FFI_CJ_AST_LEX => IntrinsicKind.FfiCjAstLex
             case CHIRFormat_IntrinsicKind.IntrinsicKind_FFI_CJ_AST_PARSEEXPR => IntrinsicKind.FfiCjAstParseExpr
             case CHIRFormat_IntrinsicKind.IntrinsicKind_FFI_CJ_AST_PARSEDECL => IntrinsicKind.FfiCjAstParseDecl
@@ -1343,6 +1364,7 @@ class CHIRDeserializerImpl {
             case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_NULL => IntrinsicKind.IsNull
             case CHIRFormat_IntrinsicKind.IntrinsicKind_GET_TYPE_FOR_TYPE_PARAMETER => IntrinsicKind.GetTypeForTypeParameter
             case CHIRFormat_IntrinsicKind.IntrinsicKind_IS_SUBTYPE_TYPES => IntrinsicKind.IsSubtypeTypes
+            case CHIRFormat_IntrinsicKind.IntrinsicKind_EXCLUSIVE_SCOPE => IntrinsicKind.ExclusiveScope
 
             case _ => throw IllegalArgumentException("Unsupported IntrinsicKind")
         }
@@ -1691,7 +1713,10 @@ class CHIRDeserializerImpl {
         for (id in exprFormat.GetGenericTypeParams()) {
             genericTypeParams.add(getTypeAs<GenericType>(id))
         }
-        return Lambda(funcTy, identifier, srcCodeName, genericTypeParams)
+        let expr = Lambda(funcTy, identifier, srcCodeName, genericTypeParams)
+        expr._isLocalFunc = exprFormat.GetIsLocalFunc()
+        expr._isCompileTimeValue = exprFormat.GetIsCompileTimeValue()
+        return expr
     }
 
     private func deserializeGetInstantiateValue(exprFormat: CHIRFormat_GetInstantiateValue): GetInstantiateValue {
@@ -1855,6 +1880,16 @@ class CHIRDeserializerImpl {
         // blockGroupId, blockId and localId are set in the end of "run()", avoid being modified in configBlockGroup and configBlock
     }
 
+    private func deserializeVirtualMethodInfo(info: CHIRFormat_VirtualMethodInfo): VirtualMethodInfo {
+        let params = ArrayList<GenericType>()
+        for (id in info.GetMethodGenericTypeParams()) {
+            params.add(getTypeAs<GenericType>(id))
+        }
+        return VirtualMethodInfo(info.GetFuncName(), getTypeAs<FuncType>(info.GetSigType()), params,
+            tryGetValueAs<Function>(info.GetInstance()), info.GetAttributes(),
+            getTypeAs<FuncType>(info.GetOriginalType()), getType(info.GetParentType()), getType(info.GetReturnType()))
+    }
+
     private func configCustomTypeDef(customTypeDefFormat: CHIRFormat_CustomTypeDef, customTypeDef: CustomTypeDef) {
         configBase(customTypeDefFormat.GetBase().getOrThrow(), customTypeDef)
 
@@ -1881,7 +1916,7 @@ class CHIRDeserializerImpl {
         // Set instanceVars
         for (memberVarInfoOpt in customTypeDefFormat.GetInstanceMemberVars()) {
             customTypeDef._instanceVars.add(
-                deserializeMemberVarInfo(memberVarInfoOpt.getOrThrow(), customTypeDef))
+                deserializeMemberVarInfo(memberVarInfoOpt.getOrThrow()))
         }
 
         // Set CustomType
@@ -1898,6 +1933,15 @@ class CHIRDeserializerImpl {
         // Set staticVars
         for (id in customTypeDefFormat.GetStaticMemberVars()) {
             customTypeDef._staticVars.add(getValueAs<GlobalVar>(id))
+        }
+
+        for (tableOpt in customTypeDefFormat.GetVtable()) {
+            let table = tableOpt.getOrThrow()
+            let methods = ArrayList<VirtualMethodInfo>()
+            for (infoOpt in table.GetVirtualMethods()) {
+                methods.add(deserializeVirtualMethodInfo(infoOpt.getOrThrow()))
+            }
+            customTypeDef._vtable.add(VTableInType(getTypeAs<ClassLikeType>(table.GetSrcParentType()), methods))
         }
     }
 

@@ -213,6 +213,41 @@ public class MemberVar <: ToString {
     }
 }
 
+// Compiler-origin vtable metadata retains object references, not wire ids:
+// serialization assigns fresh ids when a plugin changes the package graph.
+internal class VirtualMethodInfo {
+    let funcName: String
+    let sigType: FuncType
+    let methodGenericTypeParams: ArrayList<GenericType>
+    let instance: ?Function
+    let attributes: UInt64
+    let originalType: FuncType
+    let parentType: Type
+    let returnType: Type
+
+    init(funcName: String, sigType: FuncType, methodGenericTypeParams: ArrayList<GenericType>,
+         instance: ?Function, attributes: UInt64, originalType: FuncType, parentType: Type, returnType: Type) {
+        this.funcName = funcName
+        this.sigType = sigType
+        this.methodGenericTypeParams = methodGenericTypeParams
+        this.instance = instance
+        this.attributes = attributes
+        this.originalType = originalType
+        this.parentType = parentType
+        this.returnType = returnType
+    }
+}
+
+internal class VTableInType {
+    let srcParentType: ClassLikeType
+    let virtualMethods: ArrayList<VirtualMethodInfo>
+
+    init(srcParentType: ClassLikeType, virtualMethods: ArrayList<VirtualMethodInfo>) {
+        this.srcParentType = srcParentType
+        this.virtualMethods = virtualMethods
+    }
+}
+
 /**
  * Abstract base class for custom type definitions (class, enum, struct, extend).
  *
@@ -234,6 +269,7 @@ sealed abstract class CustomTypeDef <: Base & Equatable<CustomTypeDef> & Hashabl
     internal let _srcCodeName: String
     internal var _staticVars = ArrayList<GlobalVar>()
     internal var _type: ?CustomType = None
+    internal var _vtable = ArrayList<VTableInType>()
 
     /**
      * Gets the `annotations` property.
