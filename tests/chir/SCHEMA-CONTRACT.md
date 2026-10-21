@@ -1,6 +1,16 @@
 # CHIR schema consumer contract
 
-The normal CMake entry takes `CANGJIE_SCHEMA_DIR=<SDK>/schema` and selects
+The public Python entry accepts the nonempty environment variable
+`CANGJIE_SCHEMA_DIR=<SDK>/schema`: `build.py build -t release --jobs 5` resolves
+it against the invocation cwd and passes one `-DCANGJIE_SCHEMA_DIR=<absolute>`
+argument to CMake. Explicit schema input reconfigures an existing build directory
+as well, so recovery never silently keeps a previous selection. Configure
+failure prevents the build. No new CLI option is required by SDK callers.
+Without the environment variable the existing first/cached build behavior is
+preserved; clearing an environment variable does not clear a preexisting CMake
+cache. Use a clean build for the default sibling-source selection.
+
+The direct CMake entry also takes `-DCANGJIE_SCHEMA_DIR=<SDK>/schema` and selects
 `StdxChirFormat.fbs`. Without that option it selects the sibling compiler's
 `schema/StdxChirFormat.fbs`. `CHIR_FLATC_OUTPUTS` depends on the normal Flatbuffer
 ExternalProject and invokes `GenerateFlatbuffers.cmake`; the same helper is used

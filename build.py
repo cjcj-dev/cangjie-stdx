@@ -134,6 +134,9 @@ def generate_cmake_defs(args):
         "-DCANGJIE_BUILD_ARGS=" + (";".join(args.build_args) if args.build_args else ""),
         "-DBUILD_GCC_TOOLCHAIN=" + (args.gcc_toolchain if args.gcc_toolchain and args.target is None else ""),
     ]
+    schema_dir = os.environ.get("CANGJIE_SCHEMA_DIR")
+    if schema_dir:
+        result.append("-DCANGJIE_SCHEMA_DIR=" + resolve_path(schema_dir))
     if args.target and "aarch64-linux-android" in args.target:
         android_api_level = re.match(r'aarch64-linux-android(\d{2})?', args.target).group(1)
         result.append("-DCMAKE_ANDROID_NDK=" + os.path.join(args.target_toolchain, "../../../../.."))
@@ -204,8 +207,11 @@ def build(args):
 
     cmake_build_dir = os.path.join(BUILD_DIR, "build-libs-{}".format(args.target)) if args.target else CMAKE_BUILD_DIR
 
-    if not os.path.exists(cmake_build_dir):
+    needs_configure = not os.path.exists(cmake_build_dir)
+    if needs_configure:
         os.makedirs(cmake_build_dir)
+    # Explicit SDK schema input must reach CMake on recovery/cached builds too.
+    if needs_configure or os.environ.get("CANGJIE_SCHEMA_DIR"):
         output = subprocess.Popen(cmake_command, cwd=cmake_build_dir, stdout=PIPE)
         log_output(output)
 
