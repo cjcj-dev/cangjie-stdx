@@ -16,7 +16,7 @@ const support=process.env.STDX_SCHEMA_SUPPORT;
 for(const [name,value] of Object.entries({out,sdk,native,flatc,support}))assert.ok(value,'required fixture input '+name);
 fs.mkdirSync(out,{recursive:true});
 const cmakeString=x=>x.replaceAll('\\','/').replaceAll('"','\\"');
-function scenario(name){
+function scenario(name, installedFallback=true){
  const dir=path.join(out,name),source=path.join(dir,'source'),build=path.join(source,'build_temp/build');
  fs.mkdirSync(source,{recursive:true});
  fs.copyFileSync(path.join(root,'build.py'),path.join(source,'build.py'));
@@ -31,7 +31,7 @@ function scenario(name){
  // disconnected environment/argv while keeping generation valid.
  fs.writeFileSync(path.join(source,'CMakeLists.txt'),`cmake_minimum_required(VERSION 3.20)
 project(StdxSchemaEntry NONE)
-set(CANGJIE_SCHEMA_DIR "${cmakeString(native)}" CACHE PATH "Fixture fallback")
+${installedFallback ? `set(CANGJIE_SCHEMA_DIR "${cmakeString(native)}" CACHE PATH "Fixture fallback")` : ''}
 add_custom_target(flatbuffers
  COMMAND \${CMAKE_COMMAND} -E make_directory "\${CMAKE_BINARY_DIR}/bin"
  COMMAND \${CMAKE_COMMAND} -E copy_if_different "${cmakeString(flatc)}" "\${CMAKE_BINARY_DIR}/bin/flatc")
@@ -66,3 +66,11 @@ test('cached schema change',()=>{const s=scenario('cached');ok(s.run(native));s.
 test('absent environment independent control',()=>{const s=scenario('control');ok(s.run());s.selected(native);ok(s.run());s.selected(native);});
 test('relative schema path',()=>{const s=scenario('relative');const relative=path.relative(s.source,sdk);ok(s.run(relative));s.selected(sdk);});
 test('configure failure stops build',()=>{const s=scenario('failure');const r=s.run(path.join(out,'missing-schema'));assert.equal(r.status,1);assert.match(r.stdout+r.stderr,/CHIR StdxChirFormat.fbs not found/);assert.equal(fs.existsSync(path.join(s.build,'control.ran')),false);});
+for(const [name,value] of [['unset',undefined],['empty','']])test('default sibling path '+name,()=>{
+ const s=scenario('default-'+name,false),r=s.run(value);
+ assert.equal(r.status,1);assert.match(r.stdout+r.stderr,/CHIR StdxChirFormat.fbs not found/);
+ assert.match(r.stdout+r.stderr,/cangjie_compiler[\s\S]*StdxChirFormat[.]fbs/);
+ assert.equal(fs.existsSync(path.join(s.build,'control.ran')),false);
+ // The real default dependency is missing in this isolated export. No installed
+ // schema copy/symlink is fabricated to turn this default-source result green.
+});
