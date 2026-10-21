@@ -58,6 +58,11 @@ sourceExpr and annotation values (including a high bit and present zero).
 `schema_wire_reader.cpp` compiles against the normally installed fixed compiler
 header and checks the same wire independently. It must read actual emitted
 bytes, not a substitute fixture labelled as stdx output.
+The independent reader follows the branch's actual default/case operands through
+the fixed schema's one-based value IDs. It checks both the high annotation value
+and a present zero on the case block, plus absence on the default block and on
+the default-mode case block. This closes a reader assertion gap; it does not
+provide executed CJ wire evidence until the runtime input is resolved.
 
 Required dynamic controls remain: independently cut each of the two new writer
 and reader field paths, confirm the intended field assertion is reached while

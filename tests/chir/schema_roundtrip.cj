@@ -40,6 +40,7 @@ main(args: Array<String>): Int64 {
     assert(decoded.name == "schema_contract", "independent package-name control")
     assert(decodedBranch.caseValues[0] == UInt64(7), "independent case-value control")
     println("CHIR_INDEPENDENT_CONTROLS_PASS")
+    assert(decodedBranch.defaultTarget.getAnno<MatchCaseId, Option<UInt64>>().isNone(), "CHIR_DEFAULT_TARGET_ANNOTATION_ABSENT")
     if (nonDefault) {
         assert(decodedBranch._sourceExpr == SourceExpr.MatchCase, "CHIR_SOURCE_EXPR_ROUNDTRIP")
         assert(decodedBranch.getAnno<MatchCaseId, Option<UInt64>>().getOrThrow() == UInt64(4294967338), "CHIR_MATCH_CASE_ID_ROUNDTRIP")
@@ -47,6 +48,7 @@ main(args: Array<String>): Int64 {
     } else {
         assert(decodedBranch._sourceExpr == SourceExpr.Other, "CHIR_SOURCE_EXPR_DEFAULT")
         assert(decodedBranch.getAnno<MatchCaseId, Option<UInt64>>().isNone(), "CHIR_ANNOTATION_ABSENT")
+        assert(decodedBranch.targetsWithoutDefault[0].getAnno<MatchCaseId, Option<UInt64>>().isNone(), "CHIR_CASE_TARGET_ANNOTATION_ABSENT")
     }
     let (second, secondLength) = serializePackage(decoded)
     emitBytes("CHIR_BYTES_AFTER", Array<UInt8>(secondLength, {i => unsafe { second.read(i) }}))
