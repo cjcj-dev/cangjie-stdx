@@ -560,6 +560,7 @@ internal enum SourceExpr {
     | Quest
     | Binary
     | ForInExpr
+    | MatchCase
     | Other
 }
 
@@ -2596,6 +2597,8 @@ public class Load <: Expression & Equatable<Load> {
  */
 public class MultiBranch <: Expression & Equatable<MultiBranch> {
     internal let _caseValues: ArrayList<UInt64>
+    // Preserve the source-case/default-edge semantics across the plugin boundary.
+    internal var _sourceExpr: SourceExpr = SourceExpr.Other
 
     /**
      * Gets the `caseValues` property.

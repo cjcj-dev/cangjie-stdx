@@ -42,6 +42,25 @@ internal interface CHIRAnno<T> <: CHIRAnnoBase {
     func set(value: T): Unit
 }
 
+// An absent source-case id differs from the valid id zero.
+internal class MatchCaseId <: CHIRAnno<Option<UInt64>> {
+    private var v: ?UInt64
+
+    internal init(value: ?UInt64) { this.v = value }
+
+    static public func create(value: ?UInt64): CHIRAnno<Option<UInt64>> {
+        return MatchCaseId(value)
+    }
+
+    static public func defaultValue(): ?UInt64 { return None }
+
+    public func get(): ?UInt64 { return v }
+
+    public func set(value: ?UInt64): Unit { this.v = value }
+
+    public func toString(): String { return "MatchCaseId: " + v.toString() }
+}
+
 internal class IsAutoEnvClass <: CHIRAnno<Bool> {
     private var v: Bool
 
