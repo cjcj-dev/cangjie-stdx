@@ -14,6 +14,9 @@ endif()
 
 get_filename_component(_filename ${CHIR_SCHEMA_SRC} NAME_WE)
 set(_flatc "${CHIR_BUILD_DIR}/bin/flatc")
+if(CMAKE_HOST_WIN32)
+    string(APPEND _flatc ".exe")
+endif()
 set(_fb_cj "${CHIR_REPO_DIR}/third_party/flatbuffers/cangjie")
 set(_flatc_out "${CHIR_BUILD_DIR}/${_filename}_generated.cj")
 
@@ -28,21 +31,23 @@ if(NOT _flatc_result EQUAL 0)
     message(FATAL_ERROR "flatc failed with code ${_flatc_result}")
 endif()
 
-function(_chir_sed_replace in_file out_file)
-    execute_process(
-        COMMAND sed "s/std.ast/stdx.chir/g" "${in_file}"
-        OUTPUT_FILE "${out_file}"
-        RESULT_VARIABLE _sed_result)
-    if(NOT _sed_result EQUAL 0)
-        message(FATAL_ERROR "sed failed for ${in_file}")
-    endif()
+function(_chir_namespace_replace in_file out_file)
+    # Reconfiguration must not invalidate every consumer of unchanged bindings.
+    # CMake's content-preserving copy also avoids a host sed dependency on Windows.
+    file(READ "${in_file}" _contents)
+    string(REPLACE "std.ast" "stdx.chir" _contents "${_contents}")
+    get_filename_component(_name "${out_file}" NAME)
+    file(MAKE_DIRECTORY "${CHIR_BUILD_DIR}/chir-bindings")
+    set(_converted "${CHIR_BUILD_DIR}/chir-bindings/${_name}")
+    file(WRITE "${_converted}" "${_contents}")
+    configure_file("${_converted}" "${out_file}" COPYONLY)
 endfunction()
 
-# sed outputs go directly into the chir package directory (distinct from syntax under src/stdx/syntax).
-_chir_sed_replace("${_fb_cj}/flatbuffer_object.cj" "${CHIR_SOURCE_DIR}/flatbuffer_object.cj")
-_chir_sed_replace("${_fb_cj}/decode.cj" "${CHIR_SOURCE_DIR}/decode.cj")
-_chir_sed_replace("${_fb_cj}/table.cj" "${CHIR_SOURCE_DIR}/table.cj")
-_chir_sed_replace("${_fb_cj}/builder.cj" "${CHIR_SOURCE_DIR}/builder.cj")
-_chir_sed_replace("${_fb_cj}/constants.cj" "${CHIR_SOURCE_DIR}/constants.cj")
-_chir_sed_replace("${_fb_cj}/exception.cj" "${CHIR_SOURCE_DIR}/exception.cj")
-_chir_sed_replace("${_flatc_out}" "${CHIR_SOURCE_DIR}/${_filename}_generated.cj")
+# The CHIR package is distinct from syntax under src/stdx/syntax.
+_chir_namespace_replace("${_fb_cj}/flatbuffer_object.cj" "${CHIR_SOURCE_DIR}/flatbuffer_object.cj")
+_chir_namespace_replace("${_fb_cj}/decode.cj" "${CHIR_SOURCE_DIR}/decode.cj")
+_chir_namespace_replace("${_fb_cj}/table.cj" "${CHIR_SOURCE_DIR}/table.cj")
+_chir_namespace_replace("${_fb_cj}/builder.cj" "${CHIR_SOURCE_DIR}/builder.cj")
+_chir_namespace_replace("${_fb_cj}/constants.cj" "${CHIR_SOURCE_DIR}/constants.cj")
+_chir_namespace_replace("${_fb_cj}/exception.cj" "${CHIR_SOURCE_DIR}/exception.cj")
+_chir_namespace_replace("${_flatc_out}" "${CHIR_SOURCE_DIR}/${_filename}_generated.cj")

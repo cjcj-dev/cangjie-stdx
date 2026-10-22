@@ -16,7 +16,7 @@ set(STDX_HOST_RUNTIME_LIB_DIR "")
 
 if(DEFINED ENV{STDX_HOST_CANGJIE_HOME} AND NOT "$ENV{STDX_HOST_CANGJIE_HOME}" STREQUAL "")
     set(STDX_HOST_CLOSURE_ENABLED TRUE)
-    set(STDX_HOST_CANGJIE_HOME "$ENV{STDX_HOST_CANGJIE_HOME}")
+    get_filename_component(STDX_HOST_CANGJIE_HOME "$ENV{STDX_HOST_CANGJIE_HOME}" ABSOLUTE)
 elseif(CMAKE_CROSSCOMPILING)
     message(FATAL_ERROR "STDX_HOST_CANGJIE_HOME must name the host SDK when cross-compiling")
 endif()
@@ -40,7 +40,11 @@ if(STDX_HOST_CLOSURE_ENABLED)
     set(STDX_HOST_RUNTIME_LIB_PATH "${STDX_HOST_CANGJIE_HOME}/runtime/lib/${STDX_HOST_CJ_LIB_DIR}")
 
     find_program(STDX_HOST_C_COMPILER NAMES clang gcc cc REQUIRED)
-    set(STDX_HOST_CJC "${STDX_HOST_CANGJIE_HOME}/bin/cjc")
+    set(_host_exe_suffix "")
+    if(CMAKE_HOST_WIN32)
+        set(_host_exe_suffix ".exe")
+    endif()
+    set(STDX_HOST_CJC "${STDX_HOST_CANGJIE_HOME}/bin/cjc${_host_exe_suffix}")
     if(NOT EXISTS "${STDX_HOST_CJC}")
         message(FATAL_ERROR "host cjc not found: ${STDX_HOST_CJC}")
     endif()
@@ -49,6 +53,26 @@ if(STDX_HOST_CLOSURE_ENABLED)
     find_program(STDX_HOST_AR NAMES ar llvm-ar REQUIRED)
 
     set(STDX_HOST_EXTRACT_OBJECT_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/HostExtractObject.cmake")
+
+    # Both host macro and host package producers must use this same closure.
+    # An explicit cjc path alone does not override target CANGJIE_HOME/modules.
+    # Do not inherit target loader/module/library paths from the SDK invocation.
+    function(stdx_host_compile_environment out_var)
+        set(_env
+            "CANGJIE_HOME=${STDX_HOST_CANGJIE_HOME}"
+            "CANGJIE_PATH=${STDX_HOST_CANGJIE_PATH}")
+        set(_libraries "${STDX_HOST_STDX_LIB_DIR}${STDX_HOST_PATH_SEP}${STDX_HOST_CJ_LIB_PATH}${STDX_HOST_PATH_SEP}${STDX_HOST_RUNTIME_LIB_PATH}")
+        set(_loader "${STDX_HOST_STDX_LIB_DIR}${STDX_HOST_PATH_SEP}${STDX_HOST_RUNTIME_LIB_DIR}${STDX_HOST_PATH_SEP}${STDX_HOST_CJ_LIB_PATH}")
+        if(CMAKE_HOST_WIN32)
+            # PATH also locates system executables on Windows. Host entries win;
+            # target module and LIBRARY_PATH inputs are still excluded entirely.
+            string(APPEND _loader "${STDX_HOST_PATH_SEP}${STDX_HOST_CANGJIE_HOME}/bin${STDX_HOST_PATH_SEP}$ENV{PATH}")
+        endif()
+        string(REPLACE ";" "\\;" _libraries "${_libraries}")
+        string(REPLACE ";" "\\;" _loader "${_loader}")
+        list(APPEND _env "LIBRARY_PATH=${_libraries}" "${STDX_HOST_LIB_PATH_ENV}=${_loader}")
+        set(${out_var} "${_env}" PARENT_SCOPE)
+    endfunction()
 
     # Host link recipe mirrors MakeCJNATIVEStdSharedLib.cmake, but keyed off CMAKE_HOST_*
     # (not DARWIN/MINGW target flags).
@@ -80,13 +104,14 @@ if(STDX_HOST_CLOSURE_ENABLED)
     endif()
 
     # Compile a stdx package for the host (no --target) and link a host shared library.
-    # make_host_cangjie_shared_lib(<name> SOURCE_DIR <dir> [STDX_DEP ...] [STD_LINK ...] DEPENDS ...)
+    # make_host_cangjie_shared_lib(<name> SOURCE_DIR <dir> SOURCES ... [STDX_DEP ...] [STD_LINK ...] DEPENDS ...)
     function(make_host_cangjie_shared_lib lib_name)
         set(one_value_args SOURCE_DIR)
-        set(multi_value_args DEPENDS STDX_DEP STD_LINK)
+        set(multi_value_args SOURCES DEPENDS STDX_DEP STD_LINK)
         cmake_parse_arguments(HOSTLIB "" "${one_value_args}" "${multi_value_args}" ${ARGN})
 
         set(_host_a "${STDX_HOST_STDX_MOD_DIR}/stdx.${lib_name}.a")
+        set(_host_cjo "${STDX_HOST_STDX_MOD_DIR}/stdx.${lib_name}.cjo")
         set(_host_o "${STDX_HOST_STDX_MOD_DIR}/${lib_name}.o")
         set(_host_so "${STDX_HOST_STDX_LIB_DIR}/libstdx.${lib_name}${STDX_HOST_SHLIB_SUFFIX}")
         set(_host_target "host_stdx_${lib_name}")
@@ -115,39 +140,48 @@ if(STDX_HOST_CLOSURE_ENABLED)
         list(APPEND _host_link_flags ${_host_debug_or_strip_flags})
 
         set(_host_link_libs)
+        set(_host_depends ${HOSTLIB_DEPENDS})
         foreach(_dep IN LISTS HOSTLIB_STDX_DEP)
             list(APPEND _host_link_libs "-lstdx.${_dep}")
+            string(REPLACE "." "_" _dep_target "host_stdx_${_dep}")
+            list(APPEND _host_depends ${_dep_target})
         endforeach()
         foreach(_std IN LISTS HOSTLIB_STD_LINK)
             list(APPEND _host_link_libs "-lcangjie-${_std}")
         endforeach()
         list(APPEND _host_link_libs ${STDX_HOST_BASE_LINK_LIBS})
 
-        string(TOLOWER "${TARGET_TRIPLE_DIRECTORY_PREFIX}_cjnative" _target_cj_lib_dir)
-        set(_target_cangjie_path "${CMAKE_BINARY_DIR}/modules/${_target_cj_lib_dir}")
-        set(_host_library_path
-            "${CMAKE_BINARY_DIR}/lib${STDX_HOST_PATH_SEP}$ENV{LIBRARY_PATH}")
-        set(_host_loader_path
-            "${STDX_HOST_STDX_LIB_DIR}${STDX_HOST_PATH_SEP}${STDX_HOST_RUNTIME_LIB_DIR}${STDX_HOST_PATH_SEP}$ENV{${STDX_HOST_LIB_PATH_ENV}}")
+        set(_host_sources)
+        foreach(_source IN LISTS HOSTLIB_SOURCES)
+            if(IS_ABSOLUTE "${_source}")
+                list(APPEND _host_sources "${_source}")
+            else()
+                list(APPEND _host_sources "${HOSTLIB_SOURCE_DIR}/${_source}")
+            endif()
+        endforeach()
+        if(NOT _host_sources)
+            file(GLOB _host_sources CONFIGURE_DEPENDS "${HOSTLIB_SOURCE_DIR}/*.cj")
+        endif()
+        cj_resolve_depends(_host_depends_files ${_host_depends})
+        stdx_host_compile_environment(_host_compile_env)
 
         # With VERBATIM, write "-L${path}" (quotes are CMake delimiters). Do not use
         # -L"${path}" — that embeds literal quotes into the linker argument.
         add_custom_command(
             OUTPUT ${_host_so}
+            BYPRODUCTS ${_host_a} ${_host_cjo} ${_host_o}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${STDX_HOST_STDX_MOD_DIR}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${STDX_HOST_STDX_LIB_DIR}
             # 1) host cjc -> static archive (.a)
             COMMAND ${CMAKE_COMMAND} -E env
-                "CANGJIE_PATH=${_target_cangjie_path}"
-                "LIBRARY_PATH=${_host_library_path}"
-                "${STDX_HOST_LIB_PATH_ENV}=${_host_loader_path}"
+                ${_host_compile_env}
                 ${STDX_HOST_CJC}
                 --no-sub-pkg
                 --trimpath ${CMAKE_SOURCE_DIR}/src/
                 --output-type=staticlib
                 -Woff=all
                 ${_host_cjc_opt_flags}
-                -p ${HOSTLIB_SOURCE_DIR}
+                ${_host_sources}
                 --output ${_host_a}
             # 2) host ar -> object (.o)
             COMMAND ${CMAKE_COMMAND}
@@ -165,7 +199,8 @@ if(STDX_HOST_CLOSURE_ENABLED)
                 -L${STDX_HOST_RUNTIME_LIB_PATH}
                 -L${STDX_HOST_CJ_LIB_PATH}
                 ${_host_link_libs}
-            DEPENDS ${HOSTLIB_DEPENDS}
+            DEPENDS ${_host_depends_files} ${_host_sources} ${HOSTLIB_SOURCE_DIR}
+                ${STDX_HOST_EXTRACT_OBJECT_SCRIPT} ${STDX_HOST_CJC}
             COMMENT "Generating host libstdx.${lib_name}${STDX_HOST_SHLIB_SUFFIX}"
             VERBATIM)
 

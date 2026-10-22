@@ -753,17 +753,29 @@ if(NOT CANGJIE_CJPM_BUILD_TYPE AND NOT CANGJIE_BUILD_WITHOUT_CHIR
         # Compile-time macro for host cjc lives in the isolated host closure whenever an
         # explicit host SDK is provided; the shipped target libraries remain under lib/.
         if(STDX_HOST_CLOSURE_ENABLED)
+            add_cangjie_macro_library_in_local(
+                cangjie${BACKEND_TYPE}ChirToStringMacroHost
+                HOST_CLOSURE
+                NO_SUB_PKG
+                PACKAGE_NAME "chir.to_string_macro"
+                MODULE_NAME "stdx"
+                SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/stdx/chir/to_string_macro)
             make_host_cangjie_shared_lib(
                 chir
+                SOURCES ${CHIR_SRCS}
                 SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/stdx/chir
                 STD_LINK std-core std-collection std-fs
-                DEPENDS cangjie${BACKEND_TYPE}Chir)
+                DEPENDS cangjie${BACKEND_TYPE}ChirToStringMacroHost
+                    ${CHIR_FLATC_SOURCE_FILES})
+            if(TARGET CHIR_FLATC_OUTPUTS)
+                add_dependencies(host_stdx_chir CHIR_FLATC_OUTPUTS)
+            endif()
             make_host_cangjie_shared_lib(
                 plugin.manager
+                SOURCES ${PLUGIN_MANAGER_SRCS}
                 SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/stdx/plugin/manager
                 STDX_DEP chir
-                STD_LINK std-core std-collection
-                DEPENDS cangjie${BACKEND_TYPE}PluginManager host_stdx_chir)
+                STD_LINK std-core std-collection)
             add_cangjie_macro_library_in_local(
                 cangjie${BACKEND_TYPE}PluginMacroHost
                 HOST_CLOSURE
@@ -771,7 +783,7 @@ if(NOT CANGJIE_CJPM_BUILD_TYPE AND NOT CANGJIE_BUILD_WITHOUT_CHIR
                 MODULE_NAME "stdx"
                 SOURCES ${PLUGIN_SRCS}
                 SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/stdx/plugin
-                DEPENDS cangjie${BACKEND_TYPE}PluginManager host_stdx_plugin_manager
+                DEPENDS host_stdx_plugin_manager
                 LINK_LIBS -lstdx.plugin.manager)
         else()
             set(_plugin_macro_lib

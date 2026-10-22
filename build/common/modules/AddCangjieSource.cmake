@@ -150,19 +150,17 @@ function(add_cangjie_macro_library_in_local target_name)
     set(_macro_library_path "${CMAKE_BINARY_DIR}/lib")
     set(_macro_compile_env
         "CANGJIE_PATH=${CMAKE_BINARY_DIR}/modules/${output_cj_lib_dir}")
-    if(CANGJIELIB_HOST_CLOSURE AND CANGJIELIB_LINK_LIBS)
-        # Prefer host stdx + host runtime so dlopen(lib-macro_*.so) can resolve libcangjie-*.so.
-        set(_macro_library_path "${STDX_HOST_STDX_LIB_DIR}${STDX_HOST_PATH_SEP}${_macro_library_path}")
-        set(_macro_host_ld_path
-            "${STDX_HOST_STDX_LIB_DIR}${STDX_HOST_PATH_SEP}${STDX_HOST_RUNTIME_LIB_DIR}")
-        list(APPEND _macro_compile_env
-            "${STDX_HOST_LIB_PATH_ENV}=${_macro_host_ld_path}${STDX_HOST_PATH_SEP}$ENV{${STDX_HOST_LIB_PATH_ENV}}")
+    if(CANGJIELIB_HOST_CLOSURE)
+        # This also applies to macros with no explicit LINK_LIBS (to_string).
+        stdx_host_compile_environment(_macro_compile_env)
+        list(APPEND resolved_depends "${STDX_HOST_CJC}")
+    else()
+        list(APPEND _macro_compile_env "LIBRARY_PATH=${_macro_library_path}")
     endif()
-    list(APPEND _macro_compile_env "LIBRARY_PATH=${_macro_library_path}")
 
     # cjc --compile-macro links against stdx dylibs with @rpath install names but does not
     # set LC_RPATH. On macOS, stage plugin.manager next to the macro and add @loader_path.
-    if(DARWIN AND CANGJIELIB_LINK_LIBS)
+    if(CMAKE_HOST_APPLE AND CANGJIELIB_LINK_LIBS)
         if(CANGJIELIB_HOST_CLOSURE)
             set(_plugin_manager_dylib "${STDX_HOST_STDX_LIB_DIR}/libstdx.plugin.manager${STDX_HOST_SHLIB_SUFFIX}")
         else()
@@ -184,7 +182,8 @@ execute_process(
             COMMAND ${CMAKE_COMMAND} -P ${_macro_rpath_runner}
             DEPENDS ${resolved_depends} ${source_files} ${CANGJIELIB_SOURCE_DIR}
                 ${_macro_rpath_runner}
-            COMMENT "Generating ${target_name}")
+            COMMENT "Generating ${target_name}"
+            VERBATIM)
     else()
         add_custom_command(
             OUTPUT ${output_full_name} ${output_cjo_full_name}
@@ -192,12 +191,13 @@ execute_process(
             COMMAND ${CMAKE_COMMAND} -E env ${_macro_compile_env}
                     ${COMPILE_CMD}
             DEPENDS ${resolved_depends} ${source_files} ${CANGJIELIB_SOURCE_DIR}
-            COMMENT "Generating ${target_name}")
+            COMMENT "Generating ${target_name}"
+            VERBATIM)
     endif()
 
     add_custom_target(
         ${target_name} ALL
-        DEPENDS ${output_full_name} ${CANGJIELIB_DEPENDS})
+        DEPENDS ${output_full_name} ${output_cjo_full_name} ${CANGJIELIB_DEPENDS})
     set_target_properties(${target_name} PROPERTIES CJ_OUTPUT_FILE ${output_full_name})
 endfunction()
 

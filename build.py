@@ -201,6 +201,11 @@ def build(args):
             build_cmd.extend(["-j", str(args.jobs)])
 
     cmake_command = ["cmake", HOME_DIR, "-G", generator] + generate_cmake_defs(args)
+    cmake_env = os.environ.copy()
+    if cmake_env.get("STDX_HOST_CANGJIE_HOME"):
+        # Like other public path inputs, resolve against the caller's cwd before
+        # entering the CMake build directory (including cached configurations).
+        cmake_env["STDX_HOST_CANGJIE_HOME"] = resolve_path(cmake_env["STDX_HOST_CANGJIE_HOME"])
 
     if not os.path.exists(BUILD_DIR):
         os.makedirs(BUILD_DIR)
@@ -210,10 +215,11 @@ def build(args):
     needs_configure = not os.path.exists(cmake_build_dir)
     if needs_configure:
         os.makedirs(cmake_build_dir)
-    # Explicit SDK schema input must reach CMake on recovery/cached builds too.
-    if needs_configure or os.environ.get("CANGJIE_SCHEMA_DIR"):
-        output = subprocess.Popen(cmake_command, cwd=cmake_build_dir, stdout=PIPE)
-        log_output(output)
+    # Re-evaluate host SDK and schema selection on cached builds as well. A host
+    # environment value can change or be removed without changing any source
+    # timestamp; Ninja alone cannot observe that configuration input.
+    output = subprocess.Popen(cmake_command, cwd=cmake_build_dir, stdout=PIPE, env=cmake_env)
+    log_output(output)
 
     output = subprocess.Popen(build_cmd, cwd=cmake_build_dir, stdout=PIPE)
     log_output(output)
