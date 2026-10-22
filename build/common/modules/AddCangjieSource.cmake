@@ -85,6 +85,8 @@ function(add_cangjie_macro_library_in_local target_name)
             message(FATAL_ERROR "HOST_CLOSURE requires STDX_HOST_CANGJIE_HOME")
         endif()
         set(cangjie_compiler_tool "${STDX_HOST_CJC}")
+    elseif(STDX_HOST_CLOSURE_ENABLED)
+        set(cangjie_compiler_tool "${STDX_HOST_CJC}")
     else()
         set(cangjie_compiler_tool "cjc$<$<BOOL:${CMAKE_HOST_WIN32}>:.exe>")
     endif()
@@ -124,6 +126,12 @@ function(add_cangjie_macro_library_in_local target_name)
     if(CANGJIELIB_LINK_LIBS)
         if(CANGJIELIB_HOST_CLOSURE)
             list(APPEND COMPILE_CMD -L "${STDX_HOST_STDX_LIB_DIR}" ${CANGJIELIB_LINK_LIBS})
+            if(NOT CMAKE_HOST_WIN32 AND NOT CMAKE_HOST_APPLE)
+                # The public SDK launcher deliberately replaces LD_LIBRARY_PATH.
+                # Encode only this producer's private dependency directory.
+                list(APPEND COMPILE_CMD --link-options
+                    "-rpath=$ORIGIN/../../../lib/${STDX_HOST_CJ_LIB_DIR}")
+            endif()
         else()
             list(APPEND COMPILE_CMD -L "${_stdx_dylib_dir}" ${CANGJIELIB_LINK_LIBS})
         endif()
@@ -166,11 +174,15 @@ function(add_cangjie_macro_library_in_local target_name)
         else()
             set(_plugin_manager_dylib "${_stdx_dylib_dir}/libstdx.plugin.manager${CMAKE_SHARED_LIBRARY_SUFFIX}")
         endif()
+        set(_macro_loader_rpath "@loader_path")
+        if(CANGJIELIB_HOST_CLOSURE)
+            set(_macro_loader_rpath "@loader_path/../../../lib/${STDX_HOST_CJ_LIB_DIR}")
+        endif()
         set(_macro_rpath_runner "${CMAKE_CURRENT_BINARY_DIR}/macro_rpath_${target_name}.cmake")
         file(WRITE "${_macro_rpath_runner}" "
 cmake_minimum_required(VERSION 3.16.5)
 execute_process(
-    COMMAND install_name_tool -add_rpath @loader_path \"${output_full_name}\"
+    COMMAND install_name_tool -add_rpath ${_macro_loader_rpath} \"${output_full_name}\"
     ERROR_QUIET)
 ")
         add_custom_command(
@@ -195,10 +207,26 @@ execute_process(
             VERBATIM)
     endif()
 
+    set(_macro_publication)
+    if(CANGJIELIB_HOST_CLOSURE)
+        set(_macro_publication "${STDX_HOST_MACRO_PATH}/stdx/lib-macro_${full_package_name}${STDX_HOST_SHLIB_SUFFIX}")
+        add_custom_command(OUTPUT "${_macro_publication}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${STDX_HOST_MACRO_PATH}/stdx"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${output_full_name}" "${_macro_publication}"
+            DEPENDS "${output_full_name}"
+            COMMENT "Publishing host macro image ${full_package_name}"
+            VERBATIM)
+    endif()
     add_custom_target(
         ${target_name} ALL
-        DEPENDS ${output_full_name} ${output_cjo_full_name} ${CANGJIELIB_DEPENDS})
-    set_target_properties(${target_name} PROPERTIES CJ_OUTPUT_FILE ${output_full_name})
+        DEPENDS ${output_full_name} ${output_cjo_full_name} ${_macro_publication} ${CANGJIELIB_DEPENDS})
+    if(CANGJIELIB_HOST_CLOSURE)
+        # Consumers must wait for publication, not merely the earlier link output.
+        # This also restores a removed macro image on incremental builds.
+        set_target_properties(${target_name} PROPERTIES CJ_OUTPUT_FILE "${_macro_publication}")
+    else()
+        set_target_properties(${target_name} PROPERTIES CJ_OUTPUT_FILE ${output_full_name})
+    endif()
 endfunction()
 
 function(add_cangjie_library target_name
@@ -292,7 +320,11 @@ function(add_cangjie_library target_name
     endif()
     # Do not use ${CMAKE_EXECUTABLE_SUFFIX} here, because its value is determined by the target platform, not the host.
     # Determine the suffix according to the host instead.
-    set(cangjie_compiler_tool "cjc$<$<BOOL:${CMAKE_HOST_WIN32}>:.exe>")
+    if(STDX_HOST_CLOSURE_ENABLED)
+        set(cangjie_compiler_tool "${STDX_HOST_CJC}")
+    else()
+        set(cangjie_compiler_tool "cjc$<$<BOOL:${CMAKE_HOST_WIN32}>:.exe>")
+    endif()
 
     # Set no-sub-pkg
     if(CANGJIELIB_NO_SUB_PKG)
@@ -342,8 +374,7 @@ function(add_cangjie_library target_name
         # Host macros and their host-only dependencies precede target publication paths.
         if(STDX_HOST_CLOSURE_ENABLED)
             list(APPEND COMPILE_CMD
-                -L "${STDX_HOST_STDX_LIB_DIR}"
-                -L "${STDX_HOST_STDX_MOD_DIR}")
+                -L "${STDX_HOST_MACRO_PATH}/stdx")
         endif()
         list(APPEND COMPILE_CMD
             -L "${_compile_stdx_dylib_dir}"
@@ -382,7 +413,7 @@ function(add_cangjie_library target_name
     set(_cj_compile_path "${CMAKE_BINARY_DIR}/modules/${output_cj_lib_dir}")
     if(STDX_HOST_CLOSURE_ENABLED AND CANGJIELIB_LINK_MACRO_LIBS)
         set(_cj_compile_path
-            "${STDX_HOST_CANGJIE_PATH}${STDX_HOST_PATH_SEP}${_cj_compile_path}")
+            "${STDX_HOST_MACRO_PATH}${STDX_HOST_PATH_SEP}${_cj_compile_path}")
     endif()
     set(_cj_lib_compile_env
         "CANGJIE_PATH=${_cj_compile_path}"

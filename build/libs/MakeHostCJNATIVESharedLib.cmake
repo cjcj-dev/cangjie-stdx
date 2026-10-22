@@ -34,6 +34,9 @@ if(STDX_HOST_CLOSURE_ENABLED)
     set(STDX_HOST_STDX_LIB_DIR "${STDX_HOST_CLOSURE_ROOT}/lib/${STDX_HOST_CJ_LIB_DIR}")
     set(STDX_HOST_CANGJIE_PATH "${STDX_HOST_CLOSURE_ROOT}/modules/${STDX_HOST_CJ_LIB_DIR}")
     set(STDX_HOST_STDX_MOD_DIR "${STDX_HOST_CANGJIE_PATH}/stdx")
+    # Target compilation imports target CJOs. Only executable macro images are
+    # published here, so host CHIR/manager metadata cannot shadow target modules.
+    set(STDX_HOST_MACRO_PATH "${STDX_HOST_CLOSURE_ROOT}/macros/${STDX_HOST_CJ_LIB_DIR}")
     # Host macros dlopen host libcangjie-*.so; always point at host runtime, not target.
     set(STDX_HOST_RUNTIME_LIB_DIR "${STDX_HOST_CANGJIE_HOME}/runtime/lib/${STDX_HOST_CJ_LIB_DIR}")
     set(STDX_HOST_CJ_LIB_PATH "${STDX_HOST_CANGJIE_HOME}/lib/${STDX_HOST_CJ_LIB_DIR}")
@@ -47,6 +50,17 @@ if(STDX_HOST_CLOSURE_ENABLED)
     set(STDX_HOST_CJC "${STDX_HOST_CANGJIE_HOME}/bin/cjc${_host_exe_suffix}")
     if(NOT EXISTS "${STDX_HOST_CJC}")
         message(FATAL_ERROR "host cjc not found: ${STDX_HOST_CJC}")
+    endif()
+    # Macros execute inside the compiler selected for target production. Merely
+    # using the same machine architecture does not pair two compiler runtimes.
+    unset(_stdx_public_cjc CACHE)
+    find_program(_stdx_public_cjc NAMES "cjc${_host_exe_suffix}" NO_CMAKE_FIND_ROOT_PATH REQUIRED)
+    get_filename_component(_stdx_public_cjc_real "${_stdx_public_cjc}" REALPATH)
+    get_filename_component(_stdx_host_cjc_real "${STDX_HOST_CJC}" REALPATH)
+    if(NOT _stdx_public_cjc_real STREQUAL _stdx_host_cjc_real)
+        message(FATAL_ERROR
+            "STDX_HOST_CANGJIE_HOME must provide the public cjc selected on PATH; "
+            "macro producer ${STDX_HOST_CJC} does not match target compiler ${_stdx_public_cjc}")
     endif()
     # Host archive tool (must match the host that produces .a via host cjc), not CMAKE_AR
     # which may point at the cross-target llvm-ar.
