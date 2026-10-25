@@ -113,6 +113,27 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
     const cache=fs.readFileSync(dir+'/CMakeCache.txt','utf8');
     assert(cache.split('\n').includes('BUILD_GCC_TOOLCHAIN:UNINITIALIZED='+(cross?'':gccToolchain)),
       'public native toolchain selection reaches the actual cache');
+    run(label+'-native-commands',['ninja','-C',dir,'-t','commands']);
+    run(label+'-zlib-commands',['ninja','-C',dir+'/third_party/zlib-build','-t','commands']);
+    const nativeCommands=fs.readFileSync(out+'/'+label+'-native-commands.stdout','utf8');
+    const zlibCommands=fs.readFileSync(out+'/'+label+'-zlib-commands.stdout','utf8');
+    const zlibCache=fs.readFileSync(dir+'/third_party/zlib-build/CMakeCache.txt','utf8');
+    assert(zlibCache.split('\n').some(s=>s.startsWith('CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN:')&&
+      s.slice(s.indexOf('=')+1)===(cross?'':gccToolchain)), 'zlib receives or clears the selected toolchain');
+    if(cross){
+     assert(!nativeCommands.includes('--gcc-toolchain='),'native GCC selection does not enter cross compilation');
+     assert(!zlibCommands.includes('--gcc-toolchain='),'native GCC selection does not enter cross zlib');
+    }else{
+     const flag='--gcc-toolchain='+gccToolchain;
+     const c=nativeCommands.split('\n').filter(s=>s.includes(' -c ')&&/\.c(?:\s|$)/.test(s));
+     const cpp=nativeCommands.split('\n').filter(s=>s.includes(' -c ')&&s.includes('AstApi.cpp'));
+     assert(c.length>0&&cpp.length>0,'actual native C and syntax C++ compilation reached');
+     for(const line of [...c,...cpp])assert(line.includes(flag),'native compile consumes the selected toolchain');
+     const zc=zlibCommands.split('\n').filter(s=>s.includes(' -c ')&&s.includes('adler32.c'));
+     const zl=zlibCommands.split('\n').filter(s=>s.includes(' -shared ')&&/libz\.so/.test(s));
+     assert(zc.length>0&&zl.length>0,'actual zlib compilation and shared link reached');
+     for(const line of [...zc,...zl])assert(line.includes(flag),'separate zlib project consumes the selected toolchain');
+    }
     if(cross){assert(!commands.includes('--gcc-toolchain='),'native GCC selection does not enter cross/host commands');}
     else{
      const flag='--gcc-toolchain='+gccToolchain;

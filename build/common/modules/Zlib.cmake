@@ -17,6 +17,14 @@ if (BUILD_TYPE STREQUAL "Debug")
     unset(BUILD_TYPE)
 endif()
 
+# This is a separate CMake project, so directory compile/link options do not
+# propagate. Use Clang's normal CMake toolchain input for both compilation and
+# linking, and clear a cached selection when the public input is removed.
+set(_zlib_external_toolchain "")
+if(BUILD_GCC_TOOLCHAIN AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set(_zlib_external_toolchain "${BUILD_GCC_TOOLCHAIN}")
+endif()
+
 if(IOS)
     execute_process(
         COMMAND
@@ -32,6 +40,7 @@ if(IOS)
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
             -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
             -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+            "-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=${_zlib_external_toolchain}"
             -DBUILD_SHARED_LIBS=ON
             -DCMAKE_INSTALL_PREFIX=${ZLIB_INSTALL_DIR}
             ${CANGJIE_ZLIB_SOURCE_DIR}
@@ -55,6 +64,7 @@ else()
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
             -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
             -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+            "-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=${_zlib_external_toolchain}"
             -DBUILD_SHARED_LIBS=ON
             -DCMAKE_INSTALL_PREFIX=${ZLIB_INSTALL_DIR}
             ${CANGJIE_ZLIB_SOURCE_DIR}
