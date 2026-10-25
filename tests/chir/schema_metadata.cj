@@ -125,9 +125,11 @@ main(): Int64 {
     // The intrinsic arguments/result here are deliberately transport-only.
     // No lowering, signature verification or executable intrinsic is claimed.
     for (kind in metadataKinds()) {
-        builder.createIntrinsic(UnitType.get(), kind, FuncCallContext(Array<Value>(), Array<Type>(), None))
+        entry.appendExpr(Intrinsic.create(UnitType.get(), kind,
+            FuncCallContext(Array<Value>(), Array<Type>(), None)))
     }
-    builder.createExit()
+    // Appending the transport nodes does not advance the earlier builder cursor.
+    CHIRBuilder(entry).createExit()
     checkMetadata(pkg)
     let decoded = emitMetadata("METADATA_BYTES_BEFORE", pkg)
     // Add a root, remove the implementation's direct root, and reorder defs.
