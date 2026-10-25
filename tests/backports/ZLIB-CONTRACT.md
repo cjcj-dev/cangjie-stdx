@@ -42,6 +42,33 @@ upstream example tests and `infcover` coverage as applicable; this small fixture
 does not claim every upstream feature was executed. In particular, contrib
 modules disabled by the normal upstream CMake options are not stdx consumers.
 
+On Linux, the native fixture requests `_LARGEFILE64_SOURCE=1` before any
+system header so that the pinned zlib headers declare `crc32_combine64` and
+`crc32_combine_gen64`. Keep compiler diagnostics fatal; an implicit declaration
+can truncate a return value and invalidate the CRC check. No command-line
+feature-macro workaround is needed for this fixture.
+
+From the stdx source root, use the qualified compiler and matching private GCC
+toolchain selected for the normal build. Set `ZLIB_INCLUDE` to that build's
+private zlib installation include directory, `STDX_FFI_ARCHIVE` to the selected
+independent stdx installation's `libstdx.compress.zlibFFI.a`, and `OUT` to an
+existing private consumer output directory. Record their actual paths and run
+for each applicable installed archive variant, including the unpacked install:
+
+```sh
+"$CLANG" --gcc-toolchain="$GCC_TOOLCHAIN" -std=c11 -Wall -Wextra -Werror \
+  -I "$ZLIB_INCLUDE" tests/backports/zlib_native.c \
+  "$STDX_FFI_ARCHIVE" -o "$OUT/zlib-native"
+"$OUT/zlib-native"
+```
+
+This is the Linux native consumer contract, not a cross-platform qualification.
+A fixture-only feature-macro correction requires recompiling/running this
+consumer against the unchanged installed archives; it does not require
+rebuilding zlib, stdx or the SDK. Preserve the original missing-prototype warning
+and negative-CRC failure as a preparation failure, separately from the product
+cut and its restored results.
+
 For a product cut, use a disposable validation copy and change only the
 selected dependency implementation. Rebuild the actual zlib/FFI/install closure,
 and require the corresponding native assertion to fail after the independent

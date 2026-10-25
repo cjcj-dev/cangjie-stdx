@@ -1,6 +1,11 @@
 /* Exercise the zlib objects embedded by the normal installed stdx FFI archive.
  * Compile with the headers from its private zlib installation, not system zlib.
  * The invalid-distance stream is from pinned zlib test/infcover.c. */
+/* Request zlib's explicit 64-bit APIs before libc selects its interfaces. */
+#ifndef _LARGEFILE64_SOURCE
+#define _LARGEFILE64_SOURCE 1
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
