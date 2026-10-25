@@ -52,6 +52,13 @@ function(make_cangjie_lib target_name)
         list(APPEND flags_to_compile "-Wl,-z,relro,-z,now,-z,noexecstack")
     endif()
 
+    # This is a custom driver invocation, so directory add_link_options do not
+    # reach it. Keep the selected GCC installation for CRT/C++ library lookup.
+    # OHOS/Darwin invoke ld directly, which does not accept this Clang option.
+    if(BUILD_GCC_TOOLCHAIN AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND NOT OHOS AND NOT DARWIN)
+        list(APPEND flags_to_compile "--gcc-toolchain=${BUILD_GCC_TOOLCHAIN}")
+    endif()
+
     if(ANDROID)
         # we need use our lld since we have modification to make it link properly
         # otherwise it will has false alignment and finally lead to a SEGV when load std-lib.

@@ -92,6 +92,21 @@ if(STDX_HOST_CLOSURE_ENABLED)
     # (not DARWIN/MINGW target flags).
     set(STDX_HOST_BASE_LINK_FLAGS)
     set(STDX_HOST_BASE_LINK_LIBS -lcangjie-runtime -lboundscheck)
+    # The public GCC toolchain input describes a native build. Never leak a
+    # cross-target GCC installation into the separately selected host driver.
+    # Host custom commands also bypass directory add_link_options.
+    if(BUILD_GCC_TOOLCHAIN AND NOT CMAKE_CROSSCOMPILING AND NOT CMAKE_HOST_APPLE)
+        execute_process(COMMAND "${STDX_HOST_C_COMPILER}" --version
+            RESULT_VARIABLE _stdx_host_cc_version_rc
+            OUTPUT_VARIABLE _stdx_host_cc_version
+            ERROR_VARIABLE _stdx_host_cc_version_error)
+        if(NOT _stdx_host_cc_version_rc EQUAL 0)
+            message(FATAL_ERROR "Cannot identify host C driver ${STDX_HOST_C_COMPILER}: ${_stdx_host_cc_version_error}")
+        endif()
+        if(_stdx_host_cc_version MATCHES "clang version")
+            list(APPEND STDX_HOST_BASE_LINK_FLAGS "--gcc-toolchain=${BUILD_GCC_TOOLCHAIN}")
+        endif()
+    endif()
     if(CMAKE_HOST_WIN32)
         list(APPEND STDX_HOST_BASE_LINK_FLAGS
             -shared

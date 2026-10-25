@@ -20,6 +20,8 @@ function run(name,argv,extra={},expected=0){
  if(expected!==null)assert.equal(r.status,expected,name+': '+out+'/'+name+'.stderr');return r.status;
 }
 const publicBuild=['python3',source+'/build.py','build','-t','release','--include='+sdk+'/include','--target-lib=/usr/lib/x86_64-linux-gnu','--jobs','1'];
+const gccToolchain=process.env.TEST_GCC_TOOLCHAIN;
+if(gccToolchain){assert(path.isAbsolute(gccToolchain));publicBuild.push('--gcc-toolchain='+gccToolchain);}
 const targetEnv={CANGJIE_PATH:build+'/modules/'+tuple,LD_LIBRARY_PATH:build+'/lib/'+tuple+':'+env.LD_LIBRARY_PATH};
 function consume(label){
  const p=base+'/consumer.cj';
@@ -102,11 +104,29 @@ endfunction()
 configuration_only("\${CMAKE_SOURCE_DIR}")
 `;
   fs.appendFileSync(p,selection);
-  const check=(label,dir,explicit)=>{
+  const check=(label,dir,explicit,cross=false)=>{
    run(label+'-commands',['ninja','-C',dir,'-t','commands','cangjieCJNATIVECollectAspects','cangjieCJNATIVEWeaveAspects']);
    const commands=fs.readFileSync(out+'/'+label+'-commands.stdout','utf8');
    const target=commands.split('\n').filter(s=>s.includes('--output-type=staticlib')&&/aspect_cj\/plugins\/(collect|weave)_aspects/.test(s));
    assert.equal(target.length,2,'both actual target producer commands');
+   if(gccToolchain){
+    const cache=fs.readFileSync(dir+'/CMakeCache.txt','utf8');
+    assert(cache.split('\n').includes('BUILD_GCC_TOOLCHAIN:UNINITIALIZED='+(cross?'':gccToolchain)),
+      'public native toolchain selection reaches the actual cache');
+    if(cross){assert(!commands.includes('--gcc-toolchain='),'native GCC selection does not enter cross/host commands');}
+    else{
+     const flag='--gcc-toolchain='+gccToolchain;
+     const links=commands.split('\n').filter(s=>s.includes(' -shared ')&&
+       /libstdx\.(collect_aspects|weave_aspects)\.so/.test(s));
+     assert.equal(links.length,2,'both actual target shared links reached');
+     for(const line of links)assert(line.includes(flag),'selected GCC toolchain reaches target custom driver');
+     if(explicit){
+      const hostLinks=commands.split('\n').filter(s=>s.includes(' -shared ')&&s.includes('/host-closure/lib/'+tuple+'/libstdx.'));
+      assert(hostLinks.length>=2,'actual host shared drivers reached');
+      for(const line of hostLinks)assert(line.includes(flag),'selected GCC toolchain reaches native host custom driver');
+     }
+    }
+   }
    if(explicit){
     const flatbuffers=commands.split('\n').filter(s=>s.includes('--output-type=staticlib')&&s.includes('/host-closure/modules/'+tuple+'/flatbuffers.a'));
     assert.equal(flatbuffers.length,1,'one actual host FlatBuffers producer');
@@ -130,7 +150,7 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
    run('default-configure',publicBuild,{STDX_HOST_CANGJIE_HOME:undefined});check('default',build,false);
    const ohos=path.dirname(base)+'/cross-providers/ohos/sdk/native';
    const argv=[...publicBuild,'--target','ohos-aarch64','--target-toolchain',ohos+'/llvm/bin','--target-sysroot',ohos+'/sysroot'];
-   run('cross-configure',argv);check('cross',source+'/build_temp/build-libs-aarch64-linux-ohos',true);
+   run('cross-configure',argv);check('cross',source+'/build_temp/build-libs-aarch64-linux-ohos',true,true);
   }finally{fs.writeFileSync(p,original);}
   status='FINITE_CONFIG_GRAPH_PASS';
  } else if(mode==='resume'){
