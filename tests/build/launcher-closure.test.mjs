@@ -113,7 +113,9 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
     const cache=fs.readFileSync(dir+'/CMakeCache.txt','utf8');
     assert(cache.split('\n').includes('BUILD_GCC_TOOLCHAIN:UNINITIALIZED='+(cross?'':gccToolchain)),
       'public native toolchain selection reaches the actual cache');
-    run(label+'-native-commands',['ninja','-C',dir,'-t','commands']);
+    // configuration_only excludes every target from all. Query the actual C
+    // library and syntax C++ object target explicitly, as for collect/weave.
+    run(label+'-native-commands',['ninja','-C',dir,'-t','commands','boundscheck','stdx.syntaxFFI-objs']);
     run(label+'-zlib-commands',['ninja','-C',dir+'/third_party/zlib-build','-t','commands']);
     const nativeCommands=fs.readFileSync(out+'/'+label+'-native-commands.stdout','utf8');
     const zlibCommands=fs.readFileSync(out+'/'+label+'-zlib-commands.stdout','utf8');
