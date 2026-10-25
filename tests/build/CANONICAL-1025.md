@@ -33,3 +33,14 @@ and run consumers from that prefix. Default/explicit host selection, first/cache
 and missing-publication recovery remain applicable. Latest target-tuple and
 durable package validation require their separately qualified inputs and output
 space; a temporary official-host install supplies only its measured scope.
+
+The full `launcher-closure.test.mjs configure-closure` gate accepts
+`TEST_OHOS_NATIVE` as an absolute path to an existing OHOS native installation
+containing `llvm/bin` and `sysroot`. It passes that real root to the normal
+`build.py --target-toolchain` / `--target-sysroot` inputs. The provider is read
+only; zlib configuration, compilation and installation stay in the isolated
+stdx build tree. With the variable unset, the existing
+`../cross-providers/ohos/sdk/native` layout relative to the fixture base remains
+the default. Native-only mode and every full-mode cross assertion are unchanged.
+Do not create a symlink to disguise a missing provider or copy an entire SDK
+for this gate. This configuration gate does not qualify target execution.

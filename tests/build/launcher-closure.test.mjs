@@ -199,7 +199,8 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
    run('explicit-configure',publicBuild);check('explicit',build,true);
    run('default-configure',publicBuild,{STDX_HOST_CANGJIE_HOME:undefined});check('default',build,false);
    if(mode==='configure-closure'){
-    const ohos=path.dirname(base)+'/cross-providers/ohos/sdk/native';
+    const ohos=process.env.TEST_OHOS_NATIVE??path.dirname(base)+'/cross-providers/ohos/sdk/native';
+    assert(path.isAbsolute(ohos),'OHOS native provider must be an absolute path');
     const argv=[...publicBuild,'--target','ohos-aarch64','--target-toolchain',ohos+'/llvm/bin','--target-sysroot',ohos+'/sysroot'];
     run('cross-configure',argv);check('cross',source+'/build_temp/build-libs-aarch64-linux-ohos',true,true);
    }
