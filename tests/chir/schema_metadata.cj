@@ -61,6 +61,11 @@ func checkMetadata(pkg: Package, reused!: Bool = false): Unit {
     checkSuffixAttributes(patternGroup.entryBlock, plugin | (UInt64(1) << 39))
     let patternBranch = (patternGroup.entryBlock.exprs[0] as MultiBranch).getOrThrow()
     assert(patternBranch.caseValues[0] == UInt64(7), "METADATA_PATTERN_VALUE_CONTROL")
+    // Canonical literal interning constructs a Value without PluginAdded.
+    // Consume the actual branch operand; do not clear a plugin-created node.
+    assert((patternBranch.condition as IntLiteral).getOrThrow().unsignedValue == UInt64(7),
+        "METADATA_LITERAL_VALUE_CONTROL")
+    checkSuffixAttributes(patternBranch.condition, UInt64(0))
     checkSuffixAttributes(patternBranch.defaultTarget, plugin)
     checkSuffixAttributes(patternBranch.targetsWithoutDefault[0], plugin)
     println("METADATA_ATTRIBUTE_SUFFIX_PASS")
@@ -196,8 +201,10 @@ main(): Int64 {
     // Carry the compiler-origin reuse marker on the already decoded declaration.
     // The fixture does not claim to implement the compiler's reuse decision.
     metadataClass(decoded, "Parent")._attributes.setAttr(Attribute.PreviouslyDeserialized, true)
-    checkMetadata(decoded, reused: true)
-    emitMetadata("METADATA_BYTES_REMAPPED", decoded, reused: true)
+    // The removed direct function root is recovered only by the serializer's
+    // vtable-reference queue. Check the full model after that traversal/decode.
+    let remapped = emitMetadata("METADATA_BYTES_REMAPPED", decoded, reused: true)
+    checkMetadata(remapped, reused: true)
     println("METADATA_ROUNDTRIP_PASS")
     return 0
 }

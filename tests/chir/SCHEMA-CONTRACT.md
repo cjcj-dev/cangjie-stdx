@@ -129,3 +129,15 @@ installed `flatbuffers/StdxChirFormat_generated.h`. The old 21 intrinsic tags,
 four Lambda cases, vtable metadata, and reference-remapping assertions remain.
 Both CJ fixtures call the canonical `@C freeSerializedMemory` in `unsafe`
 context; they still release the shared serialization builder.
+
+The pattern's actual integer-literal operand comes from canonical literal
+interning, which does not set PluginAdded. The CJ semantic/raw-bit checks and
+independent wire reader check all six suffix bits absent on that operand before
+and after remapping, alongside the marked-node positive controls. The complete
+model check runs after remapping serialization/deserialization: the removed
+implementation root must be rediscovered through the vtable reference queue.
+
+If the qualified H omits `StdxChirFormat_generated.h`, generate that C++ header
+using H's normal flatc against the fixed compiler/H `StdxChirFormat.fbs` into a
+private include directory. Use H's FlatBuffers runtime and AttributeInfo headers.
+Do not derive the independent oracle header from stdx's generated CJ bindings.

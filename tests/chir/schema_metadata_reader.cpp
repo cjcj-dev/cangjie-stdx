@@ -102,6 +102,16 @@ static Ids inspect(const F::CHIRPackage* p, bool remapped) {
         const auto* block = valueAt<F::Block>(p, id, F::ValueElem_Block);
         suffixAttributes(block->base()->base(), plugin | (id == patternGroup->entryBlock() ? bit(A::MATCH_PATTERN) : 0));
     }
+    const auto* entry = valueAt<F::Block>(p, patternGroup->entryBlock(), F::ValueElem_Block);
+    require(entry->exprs() && entry->exprs()->size() == 1, "pattern expression control");
+    const auto branchId = entry->exprs()->Get(0);
+    require(branchId > 0 && branchId <= p->exprs()->size() &&
+        p->exprs_type()->Get(branchId - 1) == F::ExpressionElem_MultiBranch, "pattern expression reference");
+    const auto* branch = static_cast<const F::MultiBranch*>(p->exprs()->Get(branchId - 1));
+    require(branch->base()->operands() && branch->base()->operands()->size() == 3, "pattern operand control");
+    const auto* literal = valueAt<F::IntLiteral>(p, branch->base()->operands()->Get(0), F::ValueElem_IntLiteral);
+    require(literal->val() == 7, "unmarked literal value control");
+    suffixAttributes(literal->base()->base()->base(), 0);
     std::cout << "CPP_METADATA_ATTRIBUTE_SUFFIX_PASS\n";
     require(p->phase() == F::Phase_RAW, "in-memory plugin RAW contract");
     require(child.value->base()->instanceMemberVars()->Get(0)->outerDef() == child.id, "child member outerDef");
