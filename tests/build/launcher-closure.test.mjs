@@ -4,6 +4,7 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 import {spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
 const source=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),base=path.dirname(source);
 const mode=process.argv[2],sdk=process.env.TEST_EXEC_SDK,oldHost=process.env.TEST_OLD_HOST;
+const configurationMode=mode==='configure-closure'||mode==='configure-native';
 assert(path.isAbsolute(sdk));const tuple='linux_x86_64_cjnative';
 const build=source+'/build_temp/build',closure=build+'/host-closure',out=base+'/evidence-'+mode;
 fs.mkdirSync(out);const rows=[];
@@ -86,9 +87,10 @@ finite_launcher_selection("\${CMAKE_SOURCE_DIR}")
   assert.match(fs.readFileSync(out+'/macro-dynamic.stdout','utf8'),/\$ORIGIN\/\.\.\/\.\.\/\.\.\/lib\/linux_x86_64_cjnative/);
   assert.deepEqual(fs.readdirSync(closure+'/macros/'+tuple+'/stdx').sort(),['lib-macro_stdx.chir.to_string_macro.so','lib-macro_stdx.plugin.so']);
   consume('normal');
- } else if(mode==='configure-closure'){
-  // The failed dynamic experiment is retained. This independent gate configures
-  // the real production graph; no compiler or failed target is rerun.
+ } else if(configurationMode){
+  // Both modes inspect the real production graph. Only configure-native omits
+  // cross; configure-closure still requires its real OHOS compiler and sysroot.
+  // Excluding root targets avoids stdx production, but configure builds zlib.
   const p=source+'/CMakeLists.txt',original=fs.readFileSync(p,'utf8');
   const selection=`
 function(configuration_only dir)
@@ -105,7 +107,14 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
 `;
   fs.appendFileSync(p,selection);
   const check=(label,dir,explicit,cross=false)=>{
-   run(label+'-commands',['ninja','-C',dir,'-t','commands','cangjieCJNATIVECollectAspects','cangjieCJNATIVEWeaveAspects']);
+   // AddCJNATIVELibrary makes these final shared targets. Their dependency
+   // closure includes the package producers, PluginMacroHost publication and
+   // host libraries (or native default macro staging). Querying only the cjc
+   // producer targets omits their downstream shared links. Do not add detached
+   // host/publication roots: their presence must follow the real consumer edge.
+   const sharedTargets=['collect_aspects','weave_aspects'];
+   run(label+'-shared-query',['ninja','-C',dir,'-t','query',...sharedTargets,'src/collect_aspects','src/weave_aspects']);
+   run(label+'-commands',['ninja','-C',dir,'-t','commands',...sharedTargets]);
    const commands=fs.readFileSync(out+'/'+label+'-commands.stdout','utf8');
    const target=commands.split('\n').filter(s=>s.includes('--output-type=staticlib')&&/aspect_cj\/plugins\/(collect|weave)_aspects/.test(s));
    assert.equal(target.length,2,'both actual target producer commands');
@@ -113,10 +122,14 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
     const cache=fs.readFileSync(dir+'/CMakeCache.txt','utf8');
     assert(cache.split('\n').includes('BUILD_GCC_TOOLCHAIN:UNINITIALIZED='+(cross?'':gccToolchain)),
       'public native toolchain selection reaches the actual cache');
-    // configuration_only excludes every target from all. Query the actual C
-    // library and syntax C++ object target explicitly, as for collect/weave.
-    run(label+'-native-commands',['ninja','-C',dir,'-t','commands','boundscheck','stdx.syntaxFFI-objs']);
-    run(label+'-zlib-commands',['ninja','-C',dir+'/third_party/zlib-build','-t','commands']);
+    // BoundsCheck.cmake defines the C library; syntax/native/CMakeLists.txt
+    // defines the AstApi object target. Zlib.cmake configures a separate graph.
+    // All queries name production targets, independent of EXCLUDE_FROM_ALL.
+    const nativeTargets=['boundscheck','stdx.syntaxFFI-objs'],zlibTargets=['zlib','zlibstatic'];
+    run(label+'-native-query',['ninja','-C',dir,'-t','query',...nativeTargets]);
+    run(label+'-native-commands',['ninja','-C',dir,'-t','commands',...nativeTargets]);
+    run(label+'-zlib-query',['ninja','-C',dir+'/third_party/zlib-build','-t','query',...zlibTargets]);
+    run(label+'-zlib-commands',['ninja','-C',dir+'/third_party/zlib-build','-t','commands',...zlibTargets]);
     const nativeCommands=fs.readFileSync(out+'/'+label+'-native-commands.stdout','utf8');
     const zlibCommands=fs.readFileSync(out+'/'+label+'-zlib-commands.stdout','utf8');
     const zlibCache=fs.readFileSync(dir+'/third_party/zlib-build/CMakeCache.txt','utf8');
@@ -131,10 +144,13 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
      const cpp=nativeCommands.split('\n').filter(s=>s.includes(' -c ')&&s.includes('AstApi.cpp'));
      assert(c.length>0&&cpp.length>0,'actual native C and syntax C++ compilation reached');
      for(const line of [...c,...cpp])assert(line.includes(flag),'native compile consumes the selected toolchain');
+     console.log(label+': NATIVE_C_CPP_TOOLCHAIN_ASSERT');
      const zc=zlibCommands.split('\n').filter(s=>s.includes(' -c ')&&s.includes('adler32.c'));
      const zl=zlibCommands.split('\n').filter(s=>s.includes(' -shared ')&&/libz\.so/.test(s));
      assert(zc.length>0&&zl.length>0,'actual zlib compilation and shared link reached');
+     console.log(label+': ZLIB_COMPILE_LINK_REACHED');
      for(const line of [...zc,...zl])assert(line.includes(flag),'separate zlib project consumes the selected toolchain');
+     console.log(label+': ZLIB_TOOLCHAIN_ASSERT');
     }
     if(cross){assert(!commands.includes('--gcc-toolchain='),'native GCC selection does not enter cross/host commands');}
     else{
@@ -142,15 +158,25 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
      const links=commands.split('\n').filter(s=>s.includes(' -shared ')&&
        /libstdx\.(collect_aspects|weave_aspects)\.so/.test(s));
      assert.equal(links.length,2,'both actual target shared links reached');
+     console.log(label+': TARGET_SHARED_LINKS_REACHED '+links.length);
      for(const line of links)assert(line.includes(flag),'selected GCC toolchain reaches target custom driver');
+     console.log(label+': TARGET_SHARED_TOOLCHAIN_ASSERT');
      if(explicit){
       const hostLinks=commands.split('\n').filter(s=>s.includes(' -shared ')&&s.includes('/host-closure/lib/'+tuple+'/libstdx.'));
       assert(hostLinks.length>=2,'actual host shared drivers reached');
+      console.log(label+': HOST_SHARED_LINKS_REACHED '+hostLinks.length);
       for(const line of hostLinks)assert(line.includes(flag),'selected GCC toolchain reaches native host custom driver');
+      console.log(label+': HOST_SHARED_TOOLCHAIN_ASSERT');
      }
     }
    }
    if(explicit){
+    for(const name of ['chir.to_string_macro','plugin']){
+     const file='/stdx/lib-macro_stdx.'+name+'.so';
+     const publications=commands.split('\n').filter(s=>s.includes(' -E copy_if_different ')&&
+       s.includes('/host-closure/modules/'+tuple+file)&&s.includes('/host-closure/macros/'+tuple+file));
+     assert.equal(publications.length,1,'consumer closure reaches host macro publication: '+name);
+    }
     const flatbuffers=commands.split('\n').filter(s=>s.includes('--output-type=staticlib')&&s.includes('/host-closure/modules/'+tuple+'/flatbuffers.a'));
     assert.equal(flatbuffers.length,1,'one actual host FlatBuffers producer');
     assert(flatbuffers[0].includes('CANGJIE_HOME='+sdk),'host FlatBuffers uses the paired executor SDK');
@@ -162,6 +188,7 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
      assert(!line.includes('/host-closure/modules/'),'no host CJOs in target command');
     }
     assert(commands.includes('-rpath='),'host macro has linker RPATH argument');
+    console.log(label+': HOST_EXECUTOR_METADATA_PUBLICATION_ASSERT');
    }else{
     assert(!commands.includes('/host-closure/'),'native default remains target-native');
     assert(commands.includes('ORIGIN/../../../lib/'+tuple),'staged native macro can locate target build libs');
@@ -171,11 +198,13 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
   try{
    run('explicit-configure',publicBuild);check('explicit',build,true);
    run('default-configure',publicBuild,{STDX_HOST_CANGJIE_HOME:undefined});check('default',build,false);
-   const ohos=path.dirname(base)+'/cross-providers/ohos/sdk/native';
-   const argv=[...publicBuild,'--target','ohos-aarch64','--target-toolchain',ohos+'/llvm/bin','--target-sysroot',ohos+'/sysroot'];
-   run('cross-configure',argv);check('cross',source+'/build_temp/build-libs-aarch64-linux-ohos',true,true);
+   if(mode==='configure-closure'){
+    const ohos=path.dirname(base)+'/cross-providers/ohos/sdk/native';
+    const argv=[...publicBuild,'--target','ohos-aarch64','--target-toolchain',ohos+'/llvm/bin','--target-sysroot',ohos+'/sysroot'];
+    run('cross-configure',argv);check('cross',source+'/build_temp/build-libs-aarch64-linux-ohos',true,true);
+   }
   }finally{fs.writeFileSync(p,original);}
-  status='FINITE_CONFIG_GRAPH_PASS';
+  status=mode==='configure-native'?'FINITE_NATIVE_CONFIG_GRAPH_PASS':'FINITE_CONFIG_GRAPH_PASS';
  } else if(mode==='resume'){
   run('public-build',publicBuild,{LD_DEBUG:'libs'});consume('resumed');
  } else if(mode==='loader-cut'){
@@ -194,9 +223,13 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
   for(const name of ['collect_aspects','weave_aspects']){const f=build+'/modules/'+tuple+'/stdx/stdx.aspect_cj.plugins.'+name+'.a';fs.renameSync(f,out+'/'+name+'.a.original');}
   try{run('public-target-metadata',publicBuild);consume('target-only');}finally{fs.writeFileSync(p,original);}
  }else throw Error('unknown mode '+mode);
- if(mode!=='configure-closure')status='FINITE_PUBLIC_LAUNCHER_PASS';
+ if(!configurationMode)status='FINITE_PUBLIC_LAUNCHER_PASS';
 }finally{
  const cgroup=fs.readFileSync('/proc/self/cgroup','utf8').trim().split(':').slice(2).join(':');const resource={};
  for(const name of ['memory.peak','memory.events','memory.max','memory.swap.max','cpuset.cpus.effective']){try{resource[name]=fs.readFileSync('/sys/fs/cgroup'+cgroup+'/'+name,'utf8');}catch{}}
- fs.writeFileSync(out+'/result.json',JSON.stringify({status,mode,sdk,oldHost,rows,resource,scope:'finite actual launcher/target consumers, not full stdx install'},null,2));
+ const scope=configurationMode?
+  (mode==='configure-native'?'native configuration graph only; cross NOT_RUN; no stdx build/install/consumer qualification':
+   'native and OHOS configuration graph; no stdx build/install/consumer qualification'):
+  'finite actual launcher/target consumers, not full stdx install';
+ fs.writeFileSync(out+'/result.json',JSON.stringify({status,mode,sdk,oldHost,rows,resource,scope},null,2));
 }
