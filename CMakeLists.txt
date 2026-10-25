@@ -155,6 +155,7 @@ add_compile_definitions(__${TARGET_OS}__)
 
 
 set(CANGJIE_ZLIB_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third_party/zlib")
+set(CANGJIE_ZLIB_REVISION "0a0c45d7e478826b59e67cc613be3e4b6957432c")
 
 set(GCC_TOOLCHAIN_FLAG "")
 if(MINGW)
@@ -175,9 +176,28 @@ if(NOT EXISTS ${CANGJIE_ZLIB_SOURCE_DIR})
                 --unset=GIT_DIR
                 --unset=GIT_WORK_TREE
                 --unset=GIT_INDEX_FILE
-                git clone --branch OpenHarmony-v6.0-Release
-                "${REPOSITORY_PATH}" "${CANGJIE_ZLIB_SOURCE_DIR}"
-    )
+                git init "${CANGJIE_ZLIB_SOURCE_DIR}"
+        RESULT_VARIABLE zlib_fetch_result)
+    if(NOT zlib_fetch_result STREQUAL "0")
+        message(FATAL_ERROR "Initializing zlib source failed: ${zlib_fetch_result}")
+    endif()
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E env
+                --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE
+                git -C "${CANGJIE_ZLIB_SOURCE_DIR}" fetch --depth=1 --no-tags
+                "${REPOSITORY_PATH}" "${CANGJIE_ZLIB_REVISION}"
+        RESULT_VARIABLE zlib_fetch_result)
+    if(NOT zlib_fetch_result STREQUAL "0")
+        message(FATAL_ERROR "Fetching zlib ${CANGJIE_ZLIB_REVISION} failed: ${zlib_fetch_result}")
+    endif()
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E env
+                --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE
+                git -C "${CANGJIE_ZLIB_SOURCE_DIR}" checkout --detach "${CANGJIE_ZLIB_REVISION}"
+        RESULT_VARIABLE zlib_fetch_result)
+    if(NOT zlib_fetch_result STREQUAL "0")
+        message(FATAL_ERROR "Checking out zlib ${CANGJIE_ZLIB_REVISION} failed: ${zlib_fetch_result}")
+    endif()
 endif()
 include(Zlib)
 

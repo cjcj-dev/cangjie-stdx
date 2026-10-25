@@ -16,8 +16,9 @@ set(ZLIB_OBJS_DIR ${CMAKE_CURRENT_BINARY_DIR}/temp)
 file(MAKE_DIRECTORY ${ZLIB_OBJS_DIR})
 
 if(WIN32)
+    # The pinned zlib 1.3.2 CMake target uses OUTPUT_NAME zs on Windows.
     extract_archive(
-    FROM ${CMAKE_BINARY_DIR}/third_party/zlib/lib/libzlibstatic.a
+    FROM ${CMAKE_BINARY_DIR}/third_party/zlib/lib/libzs.a
     TO ${ZLIB_OBJS_DIR})
 else()
     extract_archive(

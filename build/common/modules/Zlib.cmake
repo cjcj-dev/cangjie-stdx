@@ -37,11 +37,18 @@ if(IOS)
             -DCMAKE_ANDROID_API=${CMAKE_ANDROID_API}
             -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON
             -DCMAKE_INSTALL_LIBDIR=lib
+            -DCMAKE_INSTALL_BINDIR=bin
+            -DCMAKE_INSTALL_INCLUDEDIR=include
+            -DCMAKE_INSTALL_MANDIR=share/man
+            -DCMAKE_INSTALL_DOCDIR=share/doc
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
             -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
             -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
             "-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=${_zlib_external_toolchain}"
             -DBUILD_SHARED_LIBS=ON
+            -DZLIB_BUILD_SHARED=ON
+            -DZLIB_BUILD_STATIC=ON
+            -DZLIB_INSTALL=ON
             -DCMAKE_INSTALL_PREFIX=${ZLIB_INSTALL_DIR}
             ${CANGJIE_ZLIB_SOURCE_DIR}
         WORKING_DIRECTORY ${ZLIB_BUILD_DIR}
@@ -60,12 +67,19 @@ else()
             -DCMAKE_ANDROID_API=${CMAKE_ANDROID_API}
             -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON
             -DCMAKE_INSTALL_LIBDIR=lib
+            -DCMAKE_INSTALL_BINDIR=bin
+            -DCMAKE_INSTALL_INCLUDEDIR=include
+            -DCMAKE_INSTALL_MANDIR=share/man
+            -DCMAKE_INSTALL_DOCDIR=share/doc
             -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0.0
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
             -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
             -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
             "-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=${_zlib_external_toolchain}"
             -DBUILD_SHARED_LIBS=ON
+            -DZLIB_BUILD_SHARED=ON
+            -DZLIB_BUILD_STATIC=ON
+            -DZLIB_INSTALL=ON
             -DCMAKE_INSTALL_PREFIX=${ZLIB_INSTALL_DIR}
             ${CANGJIE_ZLIB_SOURCE_DIR}
         WORKING_DIRECTORY ${ZLIB_BUILD_DIR}
@@ -97,7 +111,7 @@ endif()
 
 message(STATUS "Installing zlib headers and libraries to Cangjie library source...")
 execute_process(
-    COMMAND ${CMAKE_COMMAND} --install .
+    COMMAND ${CMAKE_COMMAND} --install . --prefix "${ZLIB_INSTALL_DIR}"
     WORKING_DIRECTORY ${ZLIB_BUILD_DIR}
     RESULT_VARIABLE install_result
     OUTPUT_VARIABLE install_stdout
