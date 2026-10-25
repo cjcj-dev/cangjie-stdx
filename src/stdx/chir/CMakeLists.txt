@@ -7,68 +7,34 @@
 
 set(_chir_flatbuffer_sources)
 
-# Generate cangjie flatbuffers files for chir (schema from cangjie_compiler, not in-tree).
-if(NOT CANGJIE_CJPM_BUILD_TYPE)
-    if(DEFINED CANGJIE_SCHEMA_DIR)
-        set(CHIR_SCHEMA_SRC ${CANGJIE_SCHEMA_DIR}/StdxChirFormat.fbs)
-    else()
-        set(CHIR_SCHEMA_SRC ${CMAKE_SOURCE_DIR}/../cangjie_compiler/schema/StdxChirFormat.fbs)
-    endif()
-    if(NOT EXISTS ${CHIR_SCHEMA_SRC})
-        message(FATAL_ERROR "CHIR StdxChirFormat.fbs not found: ${CHIR_SCHEMA_SRC}")
-    endif()
-
-    get_filename_component(FILENAME ${CHIR_SCHEMA_SRC} NAME_WE)
-    set(CHIR_FB_GEN_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/GenerateFlatbuffers.cmake)
-    set(CHIR_FB_GEN_ARGS
-        -DCHIR_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
-        -DCHIR_BUILD_DIR=${CMAKE_BINARY_DIR}
-        -DCHIR_REPO_DIR=${CMAKE_SOURCE_DIR}
-        -DCHIR_SCHEMA_SRC=${CHIR_SCHEMA_SRC})
-
-    set(_chir_flatbuffer_sources
-        flatbuffer_object.cj
-        decode.cj
-        table.cj
-        builder.cj
-        constants.cj
-        exception.cj
-        ${FILENAME}_generated.cj)
-
-    set(CHIR_FLATC_SOURCE_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/flatbuffer_object.cj
-        ${CMAKE_CURRENT_SOURCE_DIR}/decode.cj
-        ${CMAKE_CURRENT_SOURCE_DIR}/table.cj
-        ${CMAKE_CURRENT_SOURCE_DIR}/builder.cj
-        ${CMAKE_CURRENT_SOURCE_DIR}/constants.cj
-        ${CMAKE_CURRENT_SOURCE_DIR}/exception.cj
-        ${CMAKE_CURRENT_SOURCE_DIR}/${FILENAME}_generated.cj)
-
-    # Build-time generation (flatc is produced by the flatbuffers ExternalProject).
-    add_custom_command(
-        OUTPUT ${CHIR_FLATC_SOURCE_FILES}
-        COMMAND ${CMAKE_COMMAND} ${CHIR_FB_GEN_ARGS} -P ${CHIR_FB_GEN_SCRIPT}
-        DEPENDS flatbuffers ${CHIR_SCHEMA_SRC} ${CHIR_FB_GEN_SCRIPT}
-        COMMENT "generate cangjie flatbuffers files for chir"
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-    add_custom_target(CHIR_FLATC_OUTPUTS ALL DEPENDS ${CHIR_FLATC_SOURCE_FILES})
-
-    # Configure-time generation when flatc is already available (e.g. after the first
-    # flatbuffers build or on re-configure).
-    if(EXISTS "${CMAKE_BINARY_DIR}/bin/flatc")
-        execute_process(
-            COMMAND ${CMAKE_COMMAND} ${CHIR_FB_GEN_ARGS} -P ${CHIR_FB_GEN_SCRIPT}
-            RESULT_VARIABLE _chir_gen_result)
-        if(NOT _chir_gen_result EQUAL 0)
-            message(FATAL_ERROR "CHIR flatbuffers configure-time generation failed")
-        endif()
-    endif()
-
-    set(CHIR_FLATC_SOURCE_FILES ${CHIR_FLATC_SOURCE_FILES} PARENT_SCOPE)
+# Attribute bits are shared with the compiler. Compare this package with the header
+# installed at $CANGJIE_HOME/include, not with a compiler source checkout.
+find_program(_chir_attr_python NAMES python3 python)
+if(NOT _chir_attr_python)
+    message(FATAL_ERROR "python3 is required to check CHIR Attribute against the compiler SDK")
+endif()
+execute_process(
+    COMMAND "${_chir_attr_python}" "${CMAKE_CURRENT_SOURCE_DIR}/test/check_chir_attributes.py"
+    RESULT_VARIABLE _chir_attr_sync_result)
+if(NOT _chir_attr_sync_result EQUAL 0)
+    message(FATAL_ERROR "stdx CHIR Attribute does not match the compiler SDK")
 endif()
 
-# CHIR_SRCS: FlatBuffers outputs (listed explicitly) + hand-written sources from GLOB.
+# Generate StdxChirFormat_generated.cj from the compiler SDK schema (flatc from CANGJIE_HOME).
+if(NOT CANGJIE_CJPM_BUILD_TYPE)
+    include(CangjieFlatbuffers)
+
+    cangjie_add_flatbuffers_cj_outputs(
+        TARGET CHIR_FLATC_OUTPUTS
+        SCHEMA "${CANGJIE_CHIR_FORMAT_FBS}"
+        OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+        OUTPUT_VAR _chir_generated_cj)
+
+    set(_chir_flatbuffer_sources StdxChirFormat_generated.cj)
+    set(CHIR_FLATC_SOURCE_FILES "${_chir_generated_cj}" PARENT_SCOPE)
+endif()
+
+# CHIR_SRCS: generated FlatBuffers code (explicit) + hand-written sources from GLOB.
 set(_chir_srcs ${_chir_flatbuffer_sources})
 file(GLOB _chir_glob CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cj")
 foreach(_chir_file ${_chir_glob})

@@ -20,6 +20,7 @@
 using namespace Cangjie;
 using namespace Cangjie::AST;
 
+namespace StdxSyntax {
 ParserSyntaxImpl::ParserSyntaxImpl(const std::string& input, DiagnosticEngine& diag, SourceManager& sm, const Position& pos,
     bool attachComment)
     : lexer{std::make_unique<Lexer>(input, diag, sm, pos, attachComment)}
@@ -157,4 +158,4 @@ bool ParserSyntaxImpl::SeeingExpr()
     return SeeingLiteral() || SeeingPrimitiveTypeAndLParen() || SeeingPrimitiveTypeAndDot() || SeeingMacroCall() ||
         SeeingBuiltinAnnotation();
 }
-
+} // namespace StdxSyntax

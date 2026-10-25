@@ -110,6 +110,9 @@ class WriteBuffer {
     }
 
     func append(fl: Float64): WriteBuffer {
+        if (isJsonFloatInfinite(fl)) {
+            throw JsonException("Failed to serialize JSON float.")
+        }
         unsafe {
             let p: CPointer<UInt8> = CJ_CORE_Float64ToCPointer(fl)
             if (p.isNull()) {
@@ -192,7 +195,7 @@ class WriteBuffer {
 
 func checkJsonWriteDepth(depth: Int64): Unit {
     if (depth > MAX_JSON_WRITE_DEPTH) {
-        throw JsonException("Json nested depth exceeds ${MAX_JSON_WRITE_DEPTH}.")
+        throw JsonException("JSON nested depth '${depth}' exceeds maximum '${MAX_JSON_WRITE_DEPTH}'.")
     }
 }
 

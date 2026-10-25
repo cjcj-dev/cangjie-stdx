@@ -8138,6 +8138,92 @@ Output:
 visitor_done
 ```
 
+## class TypeVisitor
+
+```cangjie
+public abstract class TypeVisitor {}
+```
+
+Function: **Abstract visitor** for CHIR type nodes. Visits a type and its `typeArgs` in depth-first order; subclasses can override [`action`](#func-actiontype) to observe each type node, and `walk` continues, skips children, or stops according to the returned [`TypeActionMode`](chir_package_enums.md#enum-typeactionmode).
+
+### func walk(Type)
+
+```cangjie
+public func walk(ty: Type): Unit
+```
+
+Function: Recursively traverses the given type and its type arguments; terminates early when `STOP` status is encountered.
+
+Parameters:
+
+- ty: [Type](#class-type) - The root type to traverse.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let i32 = IntType.getInt32()
+    let ft = FuncType.get([i32], i32)
+    println("walk_Type: ${ft.typeArgs.size}")
+}
+```
+
+Output:
+
+```text
+walk_Type: 2
+```
+
+### func action(Type)
+
+```cangjie
+public open func action(ty: Type): TypeActionMode
+```
+
+Function: Called for each visited type node, determining whether to continue traversal. Defaults to returning `TypeActionMode.CONTINUE`; subclasses can override to implement custom observation logic, skip children, or terminate early.
+
+Parameters:
+
+- ty: [Type](#class-type) - The current type node.
+
+Return Value:
+
+- [TypeActionMode](chir_package_enums.md#enum-typeactionmode) - Visitor control mode (`CONTINUE` to continue traversing child types, `SKIP` to skip children of the current type, `STOP` to terminate traversal).
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+class MyTypeVisitor <: TypeVisitor {
+    public open func action(ty: Type): TypeActionMode {
+        println(ty.toString().size > 0)
+        return TypeActionMode.CONTINUE
+    }
+}
+
+main() {
+    let i32 = IntType.getInt32()
+    let ft = FuncType.get([i32], i32)
+    let v = MyTypeVisitor()
+    v.walk(ft)
+    println("type_visitor_done")
+}
+```
+
+Output:
+
+```text
+true
+true
+true
+type_visitor_done
+```
+
 ## class FuncCallContext
 
 ```cangjie
@@ -8315,7 +8401,7 @@ Parameters:
 - caller: Value - Receiver for instance calls; RTTI value (e.g. result of `GetRTTIStatic`) for static virtual calls.
 - funcCallCtx: [FuncCallContext](#class-funccallcontext) - Function call context for arguments and type arguments.
 - method: [Function](#class-function) - The virtual method being invoked, analogous to `callee` in `Apply`.
-- overflowStrategy!: [OverflowStrategy](#enum-overflowstrategy) - Overflow strategy, default `NA`; when not `NA`, affects the prefix of `InvokeBase.methodName`.
+- overflowStrategy!: [OverflowStrategy](./chir_package_enums.md#enum-overflowstrategy) - Overflow strategy, default `NA`; when not `NA`, affects the prefix of `InvokeBase.methodName`.
 
 Example:
 
@@ -8559,6 +8645,41 @@ Output:
 
 ```text
 prop_users: 0
+```
+
+### func appendAttributesFrom(Value)
+
+```cangjie
+public func appendAttributesFrom(src: Value): Unit
+```
+
+Function: Merges the attribute bits set on `src` onto this value. Bits already set on this value stay set.
+
+Parameters:
+
+- src: [Value](#class-value) - The value whose attribute bits are added.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let src = pkg.addFunction(FuncType.get([], UnitType.get()), "src_m", "src", "demo")
+    src.setPublic()
+    src.setStatic(true)
+    let dst = pkg.addFunction(FuncType.get([], UnitType.get()), "dst_m", "dst", "demo")
+    dst.appendAttributesFrom(src)
+    println("appendAttributesFrom: ${dst.isPublic() && dst.isStatic()}")
+}
+```
+
+Output:
+
+```text
+appendAttributesFrom: true
 ```
 
 ### func dump()
@@ -10149,6 +10270,7 @@ fn_body_after: true
 fn_invalid: true
 pkg_fn_count: 1
 ```
+
 ### func isCompilerAdd()
 
 ```cangjie
@@ -10948,6 +11070,105 @@ Output:
 fn_isAbstract: false
 ```
 
+### func isClassConstructor()
+
+```cangjie
+public func isClassConstructor(): Bool
+```
+
+Function: Checks whether this function is a class constructor, including regular and primary constructors.
+
+Return Value:
+
+- Bool - `true` if this is a regular or primary class constructor; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("fn_isClassConstructor_before: ${f.isClassConstructor()}")
+    f.setClassConstructor()
+    println("fn_isClassConstructor: ${f.isClassConstructor()}")
+}
+```
+
+Output:
+
+```text
+fn_isClassConstructor_before: false
+fn_isClassConstructor: true
+```
+
+### func isStructConstructor()
+
+```cangjie
+public func isStructConstructor(): Bool
+```
+
+Function: Checks whether this function is a struct constructor, including regular and primary constructors.
+
+Return Value:
+
+- Bool - `true` if this is a regular or primary struct constructor; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("fn_isStructConstructor_before: ${f.isStructConstructor()}")
+    f.setStructConstructor()
+    println("fn_isStructConstructor: ${f.isStructConstructor()}")
+}
+```
+
+Output:
+
+```text
+fn_isStructConstructor_before: false
+fn_isStructConstructor: true
+```
+
+### func isAnnoFactoryFunc()
+
+```cangjie
+public func isAnnoFactoryFunc(): Bool
+```
+
+Function: Checks whether this function is an annotation factory function.
+
+Return Value:
+
+- Bool - `true` if this is an annotation factory function; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("fn_isAnnoFactoryFunc: ${f.isAnnoFactoryFunc()}")
+}
+```
+
+Output:
+
+```text
+fn_isAnnoFactoryFunc: false
+```
+
 ### func isDeclaredInCurPackage()
 
 ```cangjie
@@ -11070,6 +11291,68 @@ Output:
 
 ```text
 fn_isMemberMethod: false
+```
+
+### func isMut()
+
+```cangjie
+public func isMut(): Bool
+```
+
+Function: Checks whether this function has the `mut` attribute.
+
+Return Value:
+
+- Bool - `true` if the `mut` attribute is set; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("fn_isMut: ${f.isMut()}")
+}
+```
+
+Output:
+
+```text
+fn_isMut: false
+```
+
+### func isInitializer()
+
+```cangjie
+public func isInitializer(): Bool
+```
+
+Function: Checks whether this function has the initializer attribute, as used for package, file, or variable initialization functions. This attribute is independent of the constructor kind; setting the constructor kind does not set this attribute.
+
+Return Value:
+
+- Bool - `true` if the initializer attribute is set; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("fn_isInitializer: ${f.isInitializer()}")
+}
+```
+
+Output:
+
+```text
+fn_isInitializer: false
 ```
 
 ### func isOpen()
@@ -11262,6 +11545,350 @@ Output:
 
 ```text
 fn_setAbstract: true
+```
+
+### func setClassConstructor()
+
+```cangjie
+public func setClassConstructor(): Unit
+```
+
+Function: Sets this function's kind to a class constructor, replacing its previous kind. This only sets the function kind; it does not create a function body or set the initializer attribute.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.setClassConstructor()
+    println("fn_setClassConstructor: ${f.isClassConstructor()}")
+}
+```
+
+Output:
+
+```text
+fn_setClassConstructor: true
+```
+
+### func setStructConstructor()
+
+```cangjie
+public func setStructConstructor(): Unit
+```
+
+Function: Sets this function's kind to a struct constructor, replacing its previous kind. This only sets the function kind; it does not create a function body or set the initializer attribute.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.setStructConstructor()
+    println("fn_setStructConstructor: ${f.isStructConstructor()}")
+}
+```
+
+Output:
+
+```text
+fn_setStructConstructor: true
+```
+
+### func isOverride()
+
+```cangjie
+public func isOverride(): Bool
+```
+
+Function: Checks whether this function has the `override` attribute.
+
+Return Value:
+
+- Bool - `true` if the attribute is set; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("default: ${f.isOverride()}")
+    f.setOverride(true)
+    println("enabled: ${f.isOverride()}")
+    f.setOverride(false)
+    println("cleared: ${f.isOverride()}")
+}
+```
+
+Output:
+
+```text
+default: false
+enabled: true
+cleared: false
+```
+
+### func setOverride(Bool)
+
+```cangjie
+public func setOverride(enable: Bool): Unit
+```
+
+Function: Sets or clears this function's `override` attribute.
+
+Parameters:
+
+- enable: Bool - `true` to set the attribute, or `false` to clear it.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.setOverride(true)
+    println("fn_setOverride: ${f.isOverride()}")
+    f.setOverride(false)
+    println("fn_setOverride_cleared: ${!f.isOverride()}")
+}
+```
+
+Output:
+
+```text
+fn_setOverride: true
+fn_setOverride_cleared: true
+```
+
+### func isFinal()
+
+```cangjie
+public func isFinal(): Bool
+```
+
+Function: Checks whether this function has the `final` attribute.
+
+Return Value:
+
+- Bool - `true` if the attribute is set; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("default: ${f.isFinal()}")
+    f.setFinal(true)
+    println("enabled: ${f.isFinal()}")
+    f.setFinal(false)
+    println("cleared: ${f.isFinal()}")
+}
+```
+
+Output:
+
+```text
+default: false
+enabled: true
+cleared: false
+```
+
+### func setFinal(Bool)
+
+```cangjie
+public func setFinal(enable: Bool): Unit
+```
+
+Function: Sets or clears this function's `final` attribute.
+
+Parameters:
+
+- enable: Bool - `true` to set the attribute, or `false` to clear it.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.setFinal(true)
+    println("fn_setFinal: ${f.isFinal()}")
+    f.setFinal(false)
+    println("fn_setFinal_cleared: ${!f.isFinal()}")
+}
+```
+
+Output:
+
+```text
+fn_setFinal: true
+fn_setFinal_cleared: true
+```
+
+### func isNoInline()
+
+```cangjie
+public func isNoInline(): Bool
+```
+
+Function: Checks whether this function has the `noInline` attribute.
+
+Return Value:
+
+- Bool - `true` if the attribute is set; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("default: ${f.isNoInline()}")
+    f.setNoInline(true)
+    println("enabled: ${f.isNoInline()}")
+    f.setNoInline(false)
+    println("cleared: ${f.isNoInline()}")
+}
+```
+
+Output:
+
+```text
+default: false
+enabled: true
+cleared: false
+```
+
+### func setNoInline(Bool)
+
+```cangjie
+public func setNoInline(enable: Bool): Unit
+```
+
+Function: Sets or clears this function's `noInline` attribute.
+
+Parameters:
+
+- enable: Bool - `true` to set the attribute, or `false` to clear it.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.setNoInline(true)
+    println("fn_setNoInline: ${f.isNoInline()}")
+    f.setNoInline(false)
+    println("fn_setNoInline_cleared: ${!f.isNoInline()}")
+}
+```
+
+Output:
+
+```text
+fn_setNoInline: true
+fn_setNoInline_cleared: true
+```
+
+### func isSkipAnalysis()
+
+```cangjie
+public func isSkipAnalysis(): Bool
+```
+
+Function: Checks whether this function has the `skip_analysis` attribute.
+
+Return Value:
+
+- Bool - `true` if the attribute is set; otherwise, `false`.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    println("default: ${f.isSkipAnalysis()}")
+    f.setSkipAnalysis(true)
+    println("enabled: ${f.isSkipAnalysis()}")
+    f.setSkipAnalysis(false)
+    println("cleared: ${f.isSkipAnalysis()}")
+}
+```
+
+Output:
+
+```text
+default: false
+enabled: true
+cleared: false
+```
+
+### func setSkipAnalysis(Bool)
+
+```cangjie
+public func setSkipAnalysis(enable: Bool): Unit
+```
+
+Function: Sets or clears this function's `skip_analysis` attribute.
+
+Parameters:
+
+- enable: Bool - `true` to set the attribute, or `false` to clear it.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.setSkipAnalysis(true)
+    println("fn_setSkipAnalysis: ${f.isSkipAnalysis()}")
+    f.setSkipAnalysis(false)
+    println("fn_setSkipAnalysis_cleared: ${!f.isSkipAnalysis()}")
+}
+```
+
+Output:
+
+```text
+fn_setSkipAnalysis: true
+fn_setSkipAnalysis_cleared: true
 ```
 
 ### func setOpen(Bool)
@@ -12657,8 +13284,6 @@ Output:
 ```text
 op_eq_UnitLiteral: true
 ```
-
-</task_result>
 
 ## class Expression
 
@@ -15019,12 +15644,47 @@ op_eq_FuncCall: true
 sealed abstract class ApplyBase <: FuncCall & Equatable<ApplyBase> {}
 ```
 
-Function: Abstract base class of Apply (plain function call) expressions; parent type of [Apply](#class-apply) and [TryApply](#class-tryapply); provides query of the callee value.
+Function: Abstract base class of Apply (plain function call) expressions; parent type of [Apply](#class-apply) and [TryApply](#class-tryapply); provides callee value query and the super-call flag.
 
 Parent Types:
 
 - [FuncCall](#class-funccall)
 - Equatable\<[ApplyBase](#class-applybase)>
+
+### prop isSuperCall
+
+```cangjie
+public prop isSuperCall: Bool
+```
+
+Function: Whether this apply is a `super` call (read-only). When `true`, dumps/prints include an `isSuperCall` marker; newly created applies default to `false`, and deserialization may set it to `true`.
+
+Type: Bool
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let fType = FuncType.get([], UnitType.get())
+    let f = pkg.addFunction(fType, "f_m", "f", "demo")
+    f.initBody()
+    let block = f.body.getOrThrow().entryBlock
+    let callCtx = FuncCallContext([], [], None)
+    let expr = Apply.create(f, callCtx)
+    block.appendExpr(expr)
+    println("prop_isSuperCall: ${expr.isSuperCall}")
+}
+```
+
+Output:
+
+```text
+prop_isSuperCall: false
+```
 
 ### prop callee
 
@@ -17237,6 +17897,46 @@ Function: The return value variable of the Lambda.
 
 Type: [LocalVar](#class-localvar)
 
+### prop paramDftValHostFunc
+
+```cangjie
+public mut prop paramDftValHostFunc: ?Lambda
+```
+
+Function: Host lambda used for default-parameter evaluation, when present; `None` if unset.
+
+Type: ?[Lambda](#class-lambda)
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+import std.collection.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.initBody()
+    let block = f.body.getOrThrow().entryBlock
+    let lambdaType = FuncType.get([], UnitType.get())
+    let expr = Lambda.create(lambdaType, "lambda_m", "myLambda", ArrayList<GenericType>())
+    block.appendExpr(expr)
+    let host = Lambda.create(lambdaType, "host_m", "host", ArrayList<GenericType>())
+    block.appendExpr(host)
+    println("prop_paramDftValHostFunc_none: ${expr.paramDftValHostFunc.isNone()}")
+    expr.paramDftValHostFunc = Some(host)
+    println("prop_paramDftValHostFunc_some: ${expr.paramDftValHostFunc.getOrThrow().identifier}")
+}
+```
+
+Output:
+
+```text
+prop_paramDftValHostFunc_none: true
+prop_paramDftValHostFunc_some: host_m
+```
+
 ### static func create(FuncType, String, String, ArrayList\<GenericType>)
 
 ```cangjie
@@ -17818,14 +18518,14 @@ op_eq_MultiBranch: true
 ## class NumericCastBase
 
 ```cangjie
-sealed abstract class NumericCastBase <: Expression & Equatable<NumericCastBase> {}
+sealed abstract class NumericCastBase <: TypeCast & Equatable<NumericCastBase> {}
 ```
 
 Function: Abstract base class of numeric-cast expressions; parent type of [NumericCast](#class-numericcast) and [TryNumericCast](#class-trynumericcast); provides query and set of the overflow strategy.
 
 Parent Types:
 
-- [Expression](#class-expression)
+- [TypeCast](#class-typecast)
 - Equatable\<[NumericCastBase](#class-numericcastbase)>
 
 ### prop overflow
@@ -18199,7 +18899,7 @@ main() {
     f.body.getOrThrow().entryBlock.appendExpr(expr)
     let lv = expr.result
     let raise = RaiseException.create(lv)
-    println("static_create_noSuccessor: ${raise.result.toString().size > 0}")
+    println("static_create_noSuccessor: ${raise.isTerminator() && raise.tryGetResult().isNone()}")
 }
 ```
 
@@ -18292,7 +18992,6 @@ Output:
 ```text
 op_eq_RaiseException: true
 ```
-</task_result>
 
 ## class RawArrayAllocateBase
 
@@ -19497,6 +20196,42 @@ Output:
 prop_fieldNames: 1
 ```
 
+### prop srcValue
+
+```cangjie
+public prop srcValue: Value
+```
+
+Function: Source value.
+
+Type: Value
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+import std.collection.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([IntType.getInt32(), IntType.getInt32()], UnitType.get()), "f_m", "f", "demo")
+    f.initBody()
+    let valParam = f.parameters[0]
+    let locParam = f.parameters[1]
+    let fieldNames = ArrayList<String>()
+    fieldNames.add("x")
+    let store = StoreElementByName.create(valParam, locParam, fieldNames)
+    println("prop_srcValue: ${store.srcValue == valParam}")
+}
+```
+
+Output:
+
+```text
+prop_srcValue: true
+```
+
 ### static func create(Value, Value, ArrayList\<String>)
 
 ```cangjie
@@ -19630,6 +20365,42 @@ Output:
 
 ```text
 prop_path: 1
+```
+
+### prop srcValue
+
+```cangjie
+public prop srcValue: Value
+```
+
+Function: Source value.
+
+Type: Value
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+import std.collection.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([IntType.getInt32(), IntType.getInt32()], UnitType.get()), "f_m", "f", "demo")
+    f.initBody()
+    let valParam = f.parameters[0]
+    let locParam = f.parameters[1]
+    let path = ArrayList<UInt64>()
+    path.add(0)
+    let store = StoreElementRef.create(valParam, locParam, path)
+    println("prop_srcValue: ${store.srcValue == valParam}")
+}
+```
+
+Output:
+
+```text
+prop_srcValue: true
 ```
 
 ### static func create(Value, Value, ArrayList\<UInt64>)
@@ -19860,7 +20631,7 @@ op_eq_Tuple: true
 sealed abstract class TypeCast <: Expression & Equatable<TypeCast> {}
 ```
 
-Function: Abstract base class of type-cast expressions; parent type of [Box](#class-box), [StaticCast](#class-staticcast), [CastToConcrete](#class-casttoconcrete), [CastToGeneric](#class-casttogeneric), etc.; provides query of source value, source type and target type.
+Function: Abstract base class of type-cast expressions; parent type of [Box](#class-box), [StaticCast](#class-staticcast), [CastToConcrete](#class-casttoconcrete), [CastToGeneric](#class-casttogeneric), [NumericCastBase](#class-numericcastbase), etc.; provides query of source value, source type and target type.
 
 Parent Types:
 
@@ -21089,8 +21860,6 @@ Output:
 ```text
 op_eq_VArrayExpr: true
 ```
-
-</task_result>
 
 ## class CHIRBuilder
 
@@ -22694,6 +23463,47 @@ Output:
 createGoTo: true
 ```
 
+### func createInout(Type, Value)
+
+```cangjie
+public func createInout(retTy: Type, param: Value): Intrinsic
+```
+
+Function: Creates an `inout` parameter intrinsic call expression.
+
+Parameters:
+
+- retTy: Type - Return type, typically a reference type.
+- param: Value - The argument value.
+
+Return Value:
+
+- [Intrinsic](#class-intrinsic) - `inout` intrinsic call expression.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.initBody()
+    let block = f.body.getOrThrow().entryBlock
+    let builder = CHIRBuilder(InsertPosition.AtEnd(block))
+    let alloc = builder.createAllocate(IntType.getInt32())
+    let expr = builder.createInout(RefType.get(IntType.getInt32()), alloc.result)
+    println("createInout: ${expr.toString().size > 0}")
+}
+```
+
+Output:
+
+```text
+createInout: true
+```
+
 ### func createInstanceOf(Value, Type)
 
 ```cangjie
@@ -23867,6 +24677,52 @@ Output:
 createTryBinarySub: true
 ```
 
+### func createTryInout(Type, Value, Block, Block)
+
+```cangjie
+public func createTryInout(retTy: Type, param: Value, normal: Block, err: Block): TryIntrinsic
+```
+
+Function: Creates an `inout` parameter intrinsic call expression with exception handling.
+
+Parameters:
+
+- retTy: Type - Return type, typically a reference type.
+- param: Value - The argument value.
+- normal: Block - Normal branch target basic block.
+- err: Block - Exception branch target basic block.
+
+Return Value:
+
+- [TryIntrinsic](#class-tryintrinsic) - `inout` intrinsic call expression with exception handling.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import stdx.chir.*
+
+main() {
+    let pkg = Package("demo", AccessLevel.Public)
+    let f = pkg.addFunction(FuncType.get([], UnitType.get()), "f_m", "f", "demo")
+    f.initBody()
+    let bg = f.body.getOrThrow()
+    let entryBlock = bg.entryBlock
+    let normalBlock = bg.appendBlock()
+    let errBlock = bg.appendBlock()
+    let builder = CHIRBuilder(InsertPosition.AtEnd(entryBlock))
+    let alloc = builder.createAllocate(IntType.getInt32())
+    let expr = builder.createTryInout(RefType.get(IntType.getInt32()), alloc.result, normalBlock, errBlock)
+    println("createTryInout: ${expr.toString().size > 0}")
+}
+```
+
+Output:
+
+```text
+createTryInout: true
+```
+
 ### func createTryInvoke(Type, InvokeCallContext, Block, Block)
 
 ```cangjie
@@ -24525,4 +25381,20 @@ public func freeSerializedMemory(): Unit
 ```
 
 Function: Resets the shared FlatBuffers builder state produced by the last serialization.
-</task_result>
+
+## func addRefIfFuncIsMutOrClass(Type, Function)
+
+```cangjie
+public func addRefIfFuncIsMutOrClass(thisType: Type, callee: Function): Type
+```
+
+Function: Applies the member-call `ThisType` rule and decides whether the receiver type needs another [RefType](#class-reftype) wrapper. Returns `thisType` unchanged when it is already a reference type. Returns `RefType.get(thisType)` when `thisType` is a class or a raw array, or when `callee` is a `mut` function, a class constructor, or a struct constructor. Otherwise returns `thisType`.
+
+Parameters:
+
+- thisType: [Type](#class-type) - The receiver type at the call site. For a static member with no receiver, pass the function's outer type.
+- callee: [Function](#class-function) - The callee.
+
+Return Value:
+
+- [Type](#class-type) - The type to store as the `Apply` `ThisType`.

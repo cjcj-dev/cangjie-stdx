@@ -9,6 +9,7 @@
 package stdx.chir
 
 import std.collection.{HashMap, ArrayList}
+import flatbuffers.*
 
 let fbBuilder = Builder(0)
 
@@ -172,7 +173,7 @@ class CHIRSerializerImpl {
         }
     }
 
-    // ----- Helper serializers (PackageFormat tables) -----
+    // ----- Helper serializers (CHIRFormat tables) -----
 
     private func serializeDebugLocation(loc: DebugLocation): UInt32 {
         let filePath = fbBuilder.createString(loc.filePath.toString())
@@ -376,7 +377,7 @@ class CHIRSerializerImpl {
                         typeKind[Int64(typeId) - 1] = EnumCHIRFormat_TypeElemValues(CHIRFormat_TypeElem.TypeElem_CUSTOMTYPE)
                         CHIRFormat_CustomType.createCustomType(fbBuilder, base, getId(et.def))
                     case _ =>
-                        throw Exception("Invalid CustomType: " + t.toString())
+                        throw Exception("Invalid custom type '${t.toString()}'.")
                 }
             case _ =>
                 // Primitives / tuple / ref / box / this / C family: nested Type tables only (kind + argTys).
@@ -765,7 +766,7 @@ class CHIRSerializerImpl {
             case ExprKind.GetInstantiateValue => CHIRFormat_CHIRExprKind.CHIRExprKind_GETINSTANTIATEVALUE
             case ExprKind.GetRtti => CHIRFormat_CHIRExprKind.CHIRExprKind_GETRTTI
             case ExprKind.GetRttiStatic => CHIRFormat_CHIRExprKind.CHIRExprKind_GETRTTISTATIC
-            case _ => throw CHIRException("Unknown Expr Kind: ${kind.toString()}")
+            case _ => throw CHIRException("Invalid expression kind '${kind.toString()}'.")
         }
     }
 
@@ -775,7 +776,7 @@ class CHIRSerializerImpl {
             case OverflowStrategy.Wrapping => CHIRFormat_OverflowStrategy.OverflowStrategy_WRAPPING
             case OverflowStrategy.Throwing => CHIRFormat_OverflowStrategy.OverflowStrategy_THROWING
             case OverflowStrategy.Saturating => CHIRFormat_OverflowStrategy.OverflowStrategy_SATURATING
-            case _ => throw CHIRException("Invalid OverflowStrategy: " + strategy.toString())
+            case _ => throw CHIRException("Unsupported OverflowStrategy.")
         }
     }
 
@@ -1258,6 +1259,7 @@ class CHIRSerializerImpl {
                 exprKind[Int64(exprId) - 1] = EnumCHIRFormat_ExpressionElemValues(CHIRFormat_ExpressionElem.ExpressionElem_MULTIBRANCH)
                 let caseValues = Array<UInt64>(e.caseValues.size, { i => e.caseValues[i] })
                 let caseValuesVec = if (caseValues.isEmpty()) { UInt32(0) } else { fbBuilder.createUInt64Vector(caseValues) }
+                // The compiler uses the default-edge source kind when reporting unreachable match cases.
                 CHIRFormat_MultiBranch.createMultiBranch(fbBuilder, base, caseValuesVec, serializeSourceExpr(e._sourceExpr))
             case e: NumericCastBase =>
                 exprKind[Int64(exprId) - 1] = EnumCHIRFormat_ExpressionElemValues(CHIRFormat_ExpressionElem.ExpressionElem_NUMERICCASTBASE)
@@ -1415,7 +1417,7 @@ class CHIRSerializerImpl {
                 let genericParams = getTypeIdList(d._genericTypeParams)
                 let genericParamsVec = if (genericParams.isEmpty()) { UInt32(0) } else { fbBuilder.createUInt32Vector(genericParams) }
                 CHIRFormat_ExtendDef.createExtendDef(fbBuilder, base, extendedType, genericParamsVec)
-            case _ => throw CHIRException("Invalid CustomTypeDef")
+            case _ => throw CHIRException("Invalid custom type definition.")
         }
     }
 
@@ -1449,12 +1451,12 @@ class CHIRSerializerImpl {
         // Build types byte + table vectors.
         // Guard: typeKind length must match allType length.
         if (typeKind.size != allType.size) {
-            throw Exception("typeKind.size (${typeKind.size}) != allType.size (${allType.size})")
+            throw Exception("Type-kind count '${typeKind.size}' does not match type count '${allType.size}'.")
         }
         // Guard: every type slot must be non-zero (fully serialized).
         for (i in 0..allType.size) {
             if (allType[i] == UInt32(0)) {
-                throw Exception("allType[${i}] is 0, object not serialized")
+                throw Exception("Invalid type slot '${i}': expected a nonzero serialized table offset, got 0.")
             }
         }
         let typesTypeArray = Array<UInt8>(typeKind.size, { i => typeKind[i] })
@@ -1465,17 +1467,17 @@ class CHIRSerializerImpl {
         // Build values byte + table vectors.
         // Guard: valueKind length must match allValue length.
         if (valueKind.size != allValue.size) {
-            throw Exception("valueKind.size (${valueKind.size}) != allValue.size (${allValue.size})")
+            throw Exception("Value-kind count '${valueKind.size}' does not match value count '${allValue.size}'.")
         }
         for (i in 0..valueKind.size) {
             if (valueKind[i] == UInt8(0)) {
-                throw Exception("valueKind[${i}] is 0, an invalid value kind")
+                throw Exception("Invalid value kind at slot '${i}': expected a nonzero value, got 0.")
             }
         }
         // Guard: every value slot must be non-zero (fully serialized).
         for (i in 0..allValue.size) {
             if (allValue[i] == UInt32(0)) {
-                throw Exception("allValue[${i}] is 0, object not serialized")
+                throw Exception("Invalid value slot '${i}': expected a nonzero serialized table offset, got 0.")
             }
         }
         let valuesTypeArray = Array<UInt8>(valueKind.size, { i => valueKind[i] })
@@ -1486,12 +1488,12 @@ class CHIRSerializerImpl {
         // Build expressions byte + table vectors.
         // Guard: exprKind length must match allExpression length.
         if (exprKind.size != allExpression.size) {
-            throw Exception("exprKind.size (${exprKind.size}) != allExpression.size (${allExpression.size})")
+            throw Exception("Expression-kind count '${exprKind.size}' does not match expression count '${allExpression.size}'.")
         }
         // Guard: every expression slot must be non-zero (fully serialized).
         for (i in 0..allExpression.size) {
             if (allExpression[i] == UInt32(0)) {
-                throw Exception("allExpression[${i}] is 0, object not serialized")
+                throw Exception("Invalid expression slot '${i}': expected a nonzero serialized table offset, got 0.")
             }
         }
         let exprsTypeArray = Array<UInt8>(exprKind.size, { i => exprKind[i] })
@@ -1502,12 +1504,12 @@ class CHIRSerializerImpl {
         // Build custom type defs byte + table vectors.
         // Guard: defKind length must match allCustomTypeDef length.
         if (defKind.size != allCustomTypeDef.size) {
-            throw Exception("defKind.size (${defKind.size}) != allCustomTypeDef.size (${allCustomTypeDef.size})")
+            throw Exception("Definition-kind count '${defKind.size}' does not match definition count '${allCustomTypeDef.size}'.")
         }
         // Guard: every def slot must be non-zero (fully serialized).
         for (i in 0..allCustomTypeDef.size) {
             if (allCustomTypeDef[i] == UInt32(0)) {
-                throw Exception("allCustomTypeDef[${i}] is 0, object not serialized")
+                throw Exception("Invalid custom type definition slot '${i}': expected a nonzero serialized table offset, got 0.")
             }
         }
         let defsTypeArray = Array<UInt8>(defKind.size, { i => defKind[i] })

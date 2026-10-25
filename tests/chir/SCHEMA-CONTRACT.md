@@ -8,15 +8,24 @@ as well, so recovery never silently keeps a previous selection. Configure
 failure prevents the build. No new CLI option is required by SDK callers.
 Without the environment variable the existing first/cached build behavior is
 preserved; clearing an environment variable does not clear a preexisting CMake
-cache. Use a clean build for the default sibling-source selection.
+cache. Use a clean build for the default installed-SDK selection.
 
 The direct CMake entry also takes `-DCANGJIE_SCHEMA_DIR=<SDK>/schema` and selects
-`StdxChirFormat.fbs`. Without that option it selects the sibling compiler's
-`schema/StdxChirFormat.fbs`. `CHIR_FLATC_OUTPUTS` depends on the normal Flatbuffer
-ExternalProject and invokes `GenerateFlatbuffers.cmake`; the same helper is used
-on configure when build/bin/flatc already exists. Generated files are explicit
-CHIR sources; stale `*_generated.cj` files are excluded from the handwritten glob.
+`StdxChirFormat.fbs`. Without that option it selects
+`$CANGJIE_HOME/schema/StdxChirFormat.fbs`. The canonical `CangjieFlatbuffers.cmake`
+uses the installed SDK's flatc and records both the executable and selected schema
+as dependencies of `CHIR_FLATC_OUTPUTS`. Its content-preserving copy replaces the
+old namespace-rewriting helper: generated CHIR code imports the private
+`flatbuffers` package supplied by the SDK. Generated files are explicit CHIR
+sources; stale `*_generated.cj` files are excluded from the handwritten glob.
 Do not rename PackageFormat, edit generated bindings, or disable CHIR.
+
+The 2026-10-25 integration retains the metadata contract below against compiler
+`41b22350b8eb5b0c8244704f906b7b8d3096eb9c`. Its schema and AttributeInfo.h match
+the installed host `1.3.0-alpha.20261025001053` after CRLF normalization. The
+canonical removal of HasInitedField and its real SDK attribute check remain.
+This source comparison does not qualify dynamic serialization. The older
+execution observations below retain their original inputs and scope.
 
 This adaptation uses compiler schema/producer/consumer commit
 `f07c55738c12c154160c313c630a42a73a51025d` without changing its encoding:

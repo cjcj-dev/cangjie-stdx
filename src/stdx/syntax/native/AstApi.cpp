@@ -27,6 +27,8 @@
 #include "cangjie/Basic/StringConvertor.h"
 
 using namespace Cangjie;
+using StdxSyntax::ParseRes;
+using StdxSyntax::ParserSyntax;
 namespace {
 uint8_t* getDiagInfos(DiagnosticEngine& diag) {
     std::vector<DiagnosticInfo> diagInfosParse, diagInfosLex, diagInfos;
@@ -35,7 +37,7 @@ uint8_t* getDiagInfos(DiagnosticEngine& diag) {
     diagInfos = diagInfosParse;
     diagInfos.insert(diagInfos.end(), diagInfosLex.begin(), diagInfosLex.end());
     flatbuffers::FlatBufferBuilder builder(AstWriter::INITIAL_FILE_SIZE);
-    return ExportDiags(SerializeDiags(diagInfos, builder), builder);
+    return AstWriter::ExportDiags(diagInfos, builder);
 }
 
 void SetDiagEngine(DiagnosticEngine& diag, SourceManager& sm) {
@@ -47,7 +49,7 @@ void SetDiagEngine(DiagnosticEngine& diag, SourceManager& sm) {
 }
 
 ParseRes* createParseResult() {
-    ParseRes* result = (ParseRes*)malloc(sizeof(ParseRes));
+    ParseRes* result = static_cast<ParseRes*>(malloc(sizeof(ParseRes)));
     if (result == nullptr) {
         return nullptr;
     }
@@ -220,7 +222,7 @@ ParseRes* CJ_ParseAnnotationArguments(const uint8_t* tokensBytes)
     Parser parser(tokens, diag, sm, false, false);
     auto node = parser.ParseCustomAnnotation();
 
-    ParseRes* result = (ParseRes*)malloc(sizeof(ParseRes));
+    ParseRes* result = static_cast<ParseRes*>(malloc(sizeof(ParseRes)));
     // result free on cangjie side
     if (result == nullptr) {
         return nullptr;

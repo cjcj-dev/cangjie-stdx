@@ -133,6 +133,15 @@ sealed abstract class Value <: Base & ToString & Hashable & Equatable<Value> {
     }
 
     /**
+     * Performs the public behavior of `appendAttributesFrom`.
+     * @param src The `src` parameter.
+     * @return The `Unit` result.
+     */
+    public func appendAttributesFrom(src: Value): Unit {
+        _attributes._attributesInfo |= src._attributes._attributesInfo
+    }
+
+    /**
      * Performs the public behavior of `dump`.
      * @return The `Unit` result.
      */
@@ -231,13 +240,22 @@ sealed abstract class Value <: Base & ToString & Hashable & Equatable<Value> {
             return
         }
         _users.add(user)
+        if (let Some(block) <- (this as Block)) {
+            block.addPredecessor(user)
+        }
     }
 
     internal func removeUser(user: Expression): Unit {
         if (user._operands.contains(this)) {
             return
         }
+        let wasUser = _users.contains(user)
         _users.removeIf({ u => u == user })
+        if (wasUser) {
+            if (let Some(block) <- (this as Block)) {
+                block.removePredecessor(user)
+            }
+        }
     }
 }
 
@@ -330,6 +348,7 @@ public class Block <: Value & Equatable<Block> {
         if (let Some(v) <- expr._result) {
             updateLocalVarIdAndHashCode(v)
         }
+        linkTerminatorPredecessors(expr)
     }
 
     /**
@@ -359,7 +378,7 @@ public class Block <: Value & Equatable<Block> {
      */
     public func insertExpr(expr: Expression, at: Int64): Unit {
         if (at < 0) {
-            throw CHIRException("Invalid insert position: ${at}")
+            throw CHIRException("Invalid insert position: expected a non-negative value, got '${at}'.")
         }
         if (at >= _exprs.size) {
             _exprs.add(expr)
@@ -369,6 +388,53 @@ public class Block <: Value & Equatable<Block> {
         expr._owner = this
         if (let Some(v) <- expr._result) {
             updateLocalVarIdAndHashCode(v)
+        }
+        linkTerminatorPredecessors(expr)
+    }
+
+    // Register the terminator's owner as a predecessor of this block.
+    internal func addPredecessor(user: Expression): Unit {
+        if (!user.isTerminator()) {
+            return
+        }
+        if (let Some(bb) <- user._owner) {
+            if (!_predecessors.contains(bb)) {
+                _predecessors.add(bb)
+            }
+        }
+    }
+
+    // After a terminator is attached to this block, link this block as a predecessor
+    // of each successor (uses addPredecessor).
+    internal func linkTerminatorPredecessors(expr: Expression): Unit {
+        if (!expr.isTerminator()) {
+            return
+        }
+        for (successor in expr.successors) {
+            successor.addPredecessor(expr)
+        }
+    }
+
+    // Drop the terminator's owner from this block's predecessors unless another
+    // terminator in the same owner still targets this block.
+    internal func removePredecessor(user: Expression): Unit {
+        if (!user.isTerminator()) {
+            return
+        }
+        if (let Some(bb) <- user._owner) {
+            var stillPred = false
+            for (u in _users) {
+                if (!u.isTerminator()) {
+                    continue
+                }
+                if (let Some(ownerBb) <- u._owner && ownerBb == bb) {
+                    stillPred = true
+                    break
+                }
+            }
+            if (!stillPred) {
+                _predecessors.removeIf({ p => p == bb })
+            }
         }
     }
 
@@ -422,7 +488,7 @@ public class BlockGroup <: Value & Equatable<BlockGroup> {
             if (let Some(b) <- _entryBlock) {
                 return b
             } else {
-                throw CHIRException("Entry block is not set")
+                throw CHIRException("Entry block is not set.")
             }
         }
     }
@@ -448,7 +514,7 @@ public class BlockGroup <: Value & Equatable<BlockGroup> {
             } else if (let Some(lv) <- (_owner as LocalVar)) {
                 return lv.topLevelFunc
             } else {
-                throw CHIRException("Invalid owner: ${_owner.toString()}")
+                throw CHIRException("Invalid owner '${_owner.toString()}'.")
             }
         }
     }
@@ -490,7 +556,7 @@ public class BlockGroup <: Value & Equatable<BlockGroup> {
             } else if (let Some(lv) <- (_owner as LocalVar)) {
                 lv.expr._blockGroups.removeIf({ bg => bg == this })
             } else {
-                throw CHIRException("Invalid owner: ${_owner.toString()}")
+                throw CHIRException("Invalid owner '${_owner.toString()}'.")
             }
         }
         _kind = ValueKind.Invalid
@@ -503,7 +569,7 @@ public class BlockGroup <: Value & Equatable<BlockGroup> {
      */
     public func setEntryBlock(block: Block): Unit {
         if (!_blocks.contains(block)) {
-            throw CHIRException("Entry block must push into BlockGroup first")
+            throw CHIRException("Entry block is not present in the block group.")
         }
         _entryBlock = block
     }
@@ -952,6 +1018,22 @@ public class Function <: GlobalValue & Equatable<Function> {
     }
 
     /**
+     * Determines whether this function is an annotation factory function.
+     * @return The `Bool` result.
+     */
+    public func isAnnoFactoryFunc(): Bool {
+        return _funcKind == FuncKind.AnnoFactoryFunc
+    }
+
+    /**
+     * Determines whether this function is a class constructor.
+     * @return `true` for both class constructors and primary class constructors.
+     */
+    public func isClassConstructor(): Bool {
+        return _funcKind == FuncKind.ClassConstructor || _funcKind == FuncKind.PrimaryClassConstructor
+    }
+
+    /**
      * Performs the public behavior of `isDeclaredInCurPackage`.
      * @return The `Bool` result.
      */
@@ -960,11 +1042,27 @@ public class Function <: GlobalValue & Equatable<Function> {
     }
 
     /**
+     * Performs the public behavior of `isFinal`.
+     * @return The `Bool` result.
+     */
+    public func isFinal(): Bool {
+        return _attributes.isFinal()
+    }
+
+    /**
      * Performs the public behavior of `isGeneric`.
      * @return The `Bool` result.
      */
     public func isGeneric(): Bool {
         return _attributes.testAttr(Attribute.Generic)
+    }
+
+    /**
+     * Performs the public behavior of `isInitializer`.
+     * @return The `Bool` result.
+     */
+    public func isInitializer(): Bool {
+        return _attributes.isInitializer()
     }
 
     /**
@@ -984,11 +1082,43 @@ public class Function <: GlobalValue & Equatable<Function> {
     }
 
     /**
+     * Performs the public behavior of `isMut`.
+     * @return The `Bool` result.
+     */
+    public func isMut(): Bool {
+        return _attributes.isMut()
+    }
+
+    /**
+     * Performs the public behavior of `isNoInline`.
+     * @return The `Bool` result.
+     */
+    public func isNoInline(): Bool {
+        return _attributes.isNoInline()
+    }
+
+    /**
      * Performs the public behavior of `isOpen`.
      * @return The `Bool` result.
      */
     public func isOpen(): Bool {
         return _attributes.testAttr(Attribute.Virtual) || _attributes.testAttr(Attribute.Abstract)
+    }
+
+    /**
+     * Performs the public behavior of `isOverride`.
+     * @return The `Bool` result.
+     */
+    public func isOverride(): Bool {
+        return _attributes.isOverride()
+    }
+
+    /**
+     * Performs the public behavior of `isSkipAnalysis`.
+     * @return The `Bool` result.
+     */
+    public func isSkipAnalysis(): Bool {
+        return _attributes.isSkipAnalysis()
     }
 
     /**
@@ -1005,6 +1135,14 @@ public class Function <: GlobalValue & Equatable<Function> {
      */
     public func isStaticMemberMethod(): Bool {
         return isMemberMethod() && isStatic()
+    }
+
+    /**
+     * Determines whether this function is a struct constructor.
+     * @return `true` for both struct constructors and primary struct constructors.
+     */
+    public func isStructConstructor(): Bool {
+        return _funcKind == FuncKind.StructConstructor || _funcKind == FuncKind.PrimaryStructConstructor
     }
 
     /**
@@ -1056,12 +1194,64 @@ public class Function <: GlobalValue & Equatable<Function> {
     }
 
     /**
+     * Marks this function as a class constructor.
+     * @return The `Unit` result.
+     */
+    public func setClassConstructor(): Unit {
+        _funcKind = FuncKind.ClassConstructor
+    }
+
+    /**
+     * Performs the public behavior of `setFinal`.
+     * @param enable The `enable` parameter.
+     * @return The `Unit` result.
+     */
+    public func setFinal(enable: Bool): Unit {
+        _attributes.setFinal(enable)
+    }
+
+    /**
+     * Performs the public behavior of `setNoInline`.
+     * @param enable The `enable` parameter.
+     * @return The `Unit` result.
+     */
+    public func setNoInline(enable: Bool): Unit {
+        _attributes.setNoInline(enable)
+    }
+
+    /**
      * Performs the public behavior of `setOpen`.
      * @param enable The `enable` parameter.
      * @return The `Unit` result.
      */
     public func setOpen(enable: Bool): Unit {
         _attributes.setAttr(Attribute.Virtual, enable)
+    }
+
+    /**
+     * Performs the public behavior of `setOverride`.
+     * @param enable The `enable` parameter.
+     * @return The `Unit` result.
+     */
+    public func setOverride(enable: Bool): Unit {
+        _attributes.setOverride(enable)
+    }
+
+    /**
+     * Performs the public behavior of `setSkipAnalysis`.
+     * @param enable The `enable` parameter.
+     * @return The `Unit` result.
+     */
+    public func setSkipAnalysis(enable: Bool): Unit {
+        _attributes.setSkipAnalysis(enable)
+    }
+
+    /**
+     * Marks this function as a struct constructor.
+     * @return The `Unit` result.
+     */
+    public func setStructConstructor(): Unit {
+        _funcKind = FuncKind.StructConstructor
     }
 
     /**
@@ -1074,7 +1264,7 @@ public class Function <: GlobalValue & Equatable<Function> {
 
     internal func addBody(): BlockGroup {
         if (_body.isSome()) {
-            throw CHIRException("Function body already set")
+            throw CHIRException("Function body is already set.")
         }
         let identifier = generateBlockGroupId().toString()
         let b = BlockGroup(identifier, this)
@@ -1772,7 +1962,7 @@ public class Parameter <: Value & Equatable<Parameter> {
             } else if (let Some(lv) <- (_owner as LocalVar)) {
                 return lv.topLevelFunc
             } else {
-                throw CHIRException("Invalid owner: ${_owner.toString()}")
+                throw CHIRException("Invalid owner '${_owner.toString()}'.")
             }
         }
     }

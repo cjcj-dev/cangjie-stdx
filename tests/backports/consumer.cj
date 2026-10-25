@@ -53,7 +53,7 @@ func sm3Failure() {
     var failed = false
     try { digest.reset() } catch (e: CryptoException) {
         println("RESET_EXCEPTION ${e.message}")
-        failed = e.message == "SM3 reset failed due to inner error."
+        failed = e.message == "Failed to initialize SM3 context."
     }
     check(failed, "sm3_reset_target_exception")
     unsafe {
@@ -92,9 +92,9 @@ func x509(mode: Int32, fixtures: String) {
     } catch (e: X509Exception) { message = e.message; println("X509_EXCEPTION ${message}") }
     unsafe { probe_mode(0) }
     let expected = match (mode) {
-        case 1 => "Fail to init X509."
+        case 1 => "Failed to initialize X509."
         case 2 => "Failed to initialize X509: DER length mismatch."
-        case 3 => "X509CSR init failed: Cannot parse the X509 req body."
+        case 3 => "X509CSR init failed: Failed to parse the X509 request body."
         case 4 => "X509CSR init failed: DER length mismatch."
         case 5 => "X509CSR init failed: Failed to set public key."
         case _ => ""

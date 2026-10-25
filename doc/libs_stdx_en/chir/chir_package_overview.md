@@ -22,6 +22,7 @@ The **chir** (Cangjie High-level IR) package provides the type system and CHIR d
 - **Visitor** (`CHIRVisitor`) for traversing expression nodes in CHIR function bodies; **Type Visitor** (`TypeVisitor`) for traversing type nodes and their type arguments;
 - **Call contexts** (`FuncCallContext`, `InvokeCallContext`, `FuncSigInfo`); `InvokeCallContext` holds the virtual method `Function` and an optional `OverflowStrategy`;
 - **Serialization** (`serializePackage`, `deserializePackage`, `freeSerializedMemory`);
+- **Member-call ThisType** (`addRefIfFuncIsMutOrClass`);
 - **Overflow strategies** (`OverflowStrategy`), **operator categories** (`UnaryExprKind`, `BinaryExprKind`), **insertion positions** (`InsertPosition`), and **traversal behaviors** (`IRActionMode`, `TypeActionMode`).
 
 ## API index
@@ -136,7 +137,7 @@ The **chir** (Cangjie High-level IR) package provides the type system and CHIR d
 | [TupleType](./chir_package_api/chir_package_classes.md#class-tupletype) | Tuple type. |
 | [Type](./chir_package_api/chir_package_classes.md#class-type) | Sealed abstract base for all types, with `isXxx` type-checking methods. |
 | [TypeCast](./chir_package_api/chir_package_classes.md) | Sealed abstract base for type conversion expressions. |
-| [TypeVisitor](./chir_package_api/chir_package_classes.md) | Abstract visitor for CHIR type nodes. |
+| [TypeVisitor](./chir_package_api/chir_package_classes.md#class-typevisitor) | Abstract visitor for CHIR type nodes. |
 | [UnaryExpression](./chir_package_api/chir_package_classes.md#class-unaryexpression) | Unary operation expression. |
 | [UnaryExpressionBase](./chir_package_api/chir_package_classes.md) | Sealed abstract base for unary operation expressions. |
 | [UnboxToRef](./chir_package_api/chir_package_classes.md#class-unboxtoref) | Unbox-to-reference type conversion expression. |
@@ -155,6 +156,7 @@ The **chir** (Cangjie High-level IR) package provides the type system and CHIR d
 | [serializePackage](./chir_package_api/chir_package_classes.md#func-serializepackagepackage) | Serialize a Package to binary data. |
 | [deserializePackage](./chir_package_api/chir_package_classes.md#func-deserializepackagecpointeruint8-int64) | Deserialize a Package from binary data. |
 | [freeSerializedMemory](./chir_package_api/chir_package_classes.md#func-freeserializedmemory) | Free memory produced by serialization. |
+| [addRefIfFuncIsMutOrClass](./chir_package_api/chir_package_classes.md#func-addrefiffuncismutorclasstype-function) | Decide whether a member-call receiver needs a reference wrapper. |
 
 ### Enums
 

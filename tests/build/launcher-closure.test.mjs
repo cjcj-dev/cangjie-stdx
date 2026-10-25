@@ -52,12 +52,10 @@ public func value(): String { return Control.B.toString() }
 let status='FAILED';
 try{
  if(mode==='normal'){
-  const deps=process.env.TEST_DEPS,flatc=process.env.TEST_FLATC,support=process.env.TEST_SUPPORT;
+  const deps=process.env.TEST_DEPS;
   for(const name of ['zlib','boundscheck-v1.1.16'])fs.cpSync(deps+'/'+name,source+'/third_party/'+name,{recursive:true,filter:p=>path.basename(p)!=='.git'});
-  fs.mkdirSync(source+'/third_party/flatbuffers/cangjie',{recursive:true});
-  for(const name of ['flatbuffer_object.cj','decode.cj','table.cj','builder.cj','constants.cj','exception.cj'])fs.copyFileSync(support+'/'+name,source+'/third_party/flatbuffers/cangjie/'+name);
-  fs.copyFileSync(source+'/CMakeLists.txt',out+'/root.original');fs.copyFileSync(source+'/third_party/CMakeLists.txt',out+'/third-party.original');
-  fs.writeFileSync(source+'/third_party/CMakeLists.txt',`add_custom_target(flatbuffers COMMAND \${CMAKE_COMMAND} -E make_directory "\${CMAKE_BINARY_DIR}/bin" COMMAND \${CMAKE_COMMAND} -E copy_if_different "${flatc}" "\${CMAKE_BINARY_DIR}/bin/flatc")\n`);
+  fs.copyFileSync(source+'/CMakeLists.txt',out+'/root.original');
+  // FlatBuffers is produced through the canonical installed-SDK dependency graph.
   fs.appendFileSync(source+'/CMakeLists.txt',`
 function(finite_launcher_selection dir)
  get_property(ts DIRECTORY "\${dir}" PROPERTY BUILDSYSTEM_TARGETS)
@@ -110,6 +108,11 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
    const target=commands.split('\n').filter(s=>s.includes('--output-type=staticlib')&&/aspect_cj\/plugins\/(collect|weave)_aspects/.test(s));
    assert.equal(target.length,2,'both actual target producer commands');
    if(explicit){
+    const flatbuffers=commands.split('\n').filter(s=>s.includes('--output-type=staticlib')&&s.includes('/host-closure/modules/'+tuple+'/flatbuffers.a'));
+    assert.equal(flatbuffers.length,1,'one actual host FlatBuffers producer');
+    assert(flatbuffers[0].includes('CANGJIE_HOME='+sdk),'host FlatBuffers uses the paired executor SDK');
+    assert(!flatbuffers[0].includes('CANGJIE_PATH='+dir+'/modules/'),'host FlatBuffers excludes target metadata');
+    assert(commands.includes('/host-closure/lib/'+tuple+'/libcangjie-flatbuffers.a'),'host CHIR links its own FlatBuffers archive');
     for(const line of target){
      assert(line.includes(sdk+'/bin/cjc'),'same public executor');
      assert(line.includes('/host-closure/macros/'+tuple),'macro-only search path');

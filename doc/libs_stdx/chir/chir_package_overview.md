@@ -22,6 +22,7 @@ chir（Cangjie High-level IR）包提供类型系统与 CHIR 声明表示，包�
 - **访问器**（`CHIRVisitor`）用于遍历 CHIR 函数体中的表达式节点；**类型访问器**（`TypeVisitor`）用于遍历类型节点及其类型参数；
 - **调用上下文**（`FuncCallContext`、`InvokeCallContext`、`FuncSigInfo`）；其中 `InvokeCallContext` 持有虚方法 `Function` 与可选的 `OverflowStrategy`；
 - **序列化**（`serializePackage`、`deserializePackage`、`freeSerializedMemory`）；
+- **成员调用 ThisType**（`addRefIfFuncIsMutOrClass`）；
 - **溢出策略**（`OverflowStrategy`）、**运算类别**（`UnaryExprKind`、`BinaryExprKind`）、**插入位置**（`InsertPosition`）与**遍历行为**（`IRActionMode`、`TypeActionMode`）。
 
 ## API 列表
@@ -136,7 +137,7 @@ chir（Cangjie High-level IR）包提供类型系统与 CHIR 声明表示，包�
 | [TupleType](./chir_package_api/chir_package_classes.md#class-tupletype) | 元组类型。 |
 | [Type](./chir_package_api/chir_package_classes.md#class-type) | 所有类型的密封抽象基类，提供 `isXxx` 类型判断方法。 |
 | [TypeCast](./chir_package_api/chir_package_classes.md) | 类型转换表达式的密封抽象基类。 |
-| [TypeVisitor](./chir_package_api/chir_package_classes.md) | CHIR 类型节点的抽象访问器。 |
+| [TypeVisitor](./chir_package_api/chir_package_classes.md#class-typevisitor) | CHIR 类型节点的抽象访问器。 |
 | [UnaryExpression](./chir_package_api/chir_package_classes.md#class-unaryexpression) | 一元运算表达式。 |
 | [UnaryExpressionBase](./chir_package_api/chir_package_classes.md) | 一元运算表达式的密封抽象基类。 |
 | [UnboxToRef](./chir_package_api/chir_package_classes.md#class-unboxtoref) | 拆箱为引用的类型转换表达式。 |
@@ -155,6 +156,7 @@ chir（Cangjie High-level IR）包提供类型系统与 CHIR 声明表示，包�
 | [serializePackage](./chir_package_api/chir_package_classes.md#func-serializepackagepackage) | 将 Package 序列化为二进制数据。 |
 | [deserializePackage](./chir_package_api/chir_package_classes.md#func-deserializepackagecpointeruint8-int64) | 从二进制数据反序列化 Package。 |
 | [freeSerializedMemory](./chir_package_api/chir_package_classes.md#func-freeserializedmemory) | 释放序列化产生的内存。 |
+| [addRefIfFuncIsMutOrClass](./chir_package_api/chir_package_classes.md#func-addrefiffuncismutorclasstype-function) | 按成员调用规则决定 receiver 是否需要包一层引用类型。 |
 
 ### 枚举
 
