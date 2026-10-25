@@ -93,9 +93,19 @@ test('make-resume-changed-jobs', () => {
   const s = scenario('make-resume-changed-jobs');
   try {
     assert.equal(s.run(1).status, 0);
+    const firstConfigure = s.events().find(e => e.tool === 'cmake');
+    assert.ok(firstConfigure, 'first configure ran');
+    const marker = path.join(firstConfigure.cwd, 'resume-marker');
+    fs.writeFileSync(marker, 'keep incremental build state');
     assert.equal(s.run(3).status, 0);
     const events = s.events();
-    assert.equal(events.filter(e => e.tool === 'cmake').length, 1, 'resume keeps the existing configure');
+    const configures = events.filter(e => e.tool === 'cmake');
+    assert.equal(configures.length, 2, 'resume reconfigures public schema/host inputs');
+    assert.equal(configures[1].cwd, firstConfigure.cwd, 'resume reuses the build directory');
+    assert.deepEqual(configures[1].args, firstConfigure.args, 'jobs change only the build invocation');
+    assert.equal(fs.readFileSync(marker, 'utf8'), 'keep incremental build state');
+    assert.deepEqual(events.filter(e => e.tool === 'cmake' || e.tool === 'mingw32-make').map(e => e.tool),
+      ['cmake', 'mingw32-make', 'cmake', 'mingw32-make'], 'each build follows a successful configure');
     const calls = events.filter(e => e.tool === 'mingw32-make');
     assert.equal(calls.length, 2);
     console.log('STDX_JOBS_ARGV_ASSERTION_REACHED make-resume-changed-jobs');
