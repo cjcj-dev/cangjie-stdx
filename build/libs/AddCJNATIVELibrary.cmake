@@ -677,7 +677,8 @@ if(NOT CANGJIE_CJPM_BUILD_TYPE)
         PACKAGE_NAME "flatbuffers"
         SOURCE_DIR $ENV{CANGJIE_HOME}/third_party/flatbuffers/cangjie
         DEPENDS ${FLATBUFFERS_DEPENDENCIES})
-    # C archive used only to FORCE_LINK into chir/syntax shared libraries.
+    # Shared libraries FORCE_LINK this archive; static libraries below include
+    # its generated object so installed consumers need no private archive path.
     if(NOT CANGJIE_BUILD_WITHOUT_CHIR OR NOT CANGJIE_BUILD_WITHOUT_SYNTAX)
         add_library(cangjie-flatbuffers STATIC ${output_cj_object_dir}/flatbuffers.o)
         set_target_properties(cangjie-flatbuffers PROPERTIES LINKER_LANGUAGE C)
@@ -737,7 +738,8 @@ if(NOT CANGJIE_CJPM_BUILD_TYPE AND NOT CANGJIE_BUILD_WITHOUT_CHIR)
         OBJECTS ${output_cj_object_dir}/stdx/chir.o
         FORCE_LINK_ARCHIVES cangjie-flatbuffers
         FLAGS ${EXCLUDE_FLATBUFFERS_OPTION})
-    add_library(stdx.chir STATIC ${output_cj_object_dir}/stdx/chir.o)
+    add_library(stdx.chir STATIC ${output_cj_object_dir}/stdx/chir.o
+        ${output_cj_object_dir}/flatbuffers.o)
     set_target_properties(stdx.chir PROPERTIES LINKER_LANGUAGE C)
     add_dependencies(stdx.chir cangjie${BACKEND_TYPE}Chir cangjie-flatbuffers)
     install(TARGETS stdx.chir DESTINATION ${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH}/static/stdx)
@@ -1286,7 +1288,8 @@ if(NOT CANGJIE_CJPM_BUILD_TYPE AND NOT CANGJIE_BUILD_WITHOUT_SYNTAX)
             ${EXCLUDE_FLATBUFFERS_OPTION}
         )
     get_target_property(SYNTAXFFI_OBJS stdx.syntaxFFI SOURCES)
-    add_library(stdx.syntax STATIC ${SYNTAXFFI_OBJS} ${output_cj_object_dir}/stdx/syntax.o)
+    add_library(stdx.syntax STATIC ${SYNTAXFFI_OBJS} ${output_cj_object_dir}/stdx/syntax.o
+        ${output_cj_object_dir}/flatbuffers.o)
     target_link_libraries(stdx.syntax stdx.syntaxFFI)
     set_target_properties(stdx.syntax PROPERTIES LINKER_LANGUAGE C)
     add_dependencies(stdx.syntax cangjie${BACKEND_TYPE}Syntax cangjie-flatbuffers)
