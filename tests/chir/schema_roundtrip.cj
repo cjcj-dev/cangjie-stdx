@@ -52,7 +52,7 @@ main(args: Array<String>): Int64 {
     }
     let (second, secondLength) = serializePackage(decoded)
     emitBytes("CHIR_BYTES_AFTER", Array<UInt8>(secondLength, {i => unsafe { second.read(i) }}))
-    freeSerializedMemory()
+    unsafe { freeSerializedMemory() }
     println("CHIR_SCHEMA_ROUNDTRIP_PASS")
     return 0
 }

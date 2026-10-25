@@ -8,9 +8,22 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "cangjie/CHIR/IR/AttributeInfo.h"
 namespace F = CHIRFormat;
+using A = Cangjie::CHIR::Attribute;
+static_assert(static_cast<unsigned>(A::JAVA_HAS_DEFAULT) == 35);
+static_assert(static_cast<unsigned>(A::PREVIOUSLY_DESERIALIZED) == 36);
+static_assert(static_cast<unsigned>(A::DOES_NOT_THROW) == 37);
+static_assert(static_cast<unsigned>(A::OBJ_C_EXPORT) == 38);
+static_assert(static_cast<unsigned>(A::MATCH_PATTERN) == 39);
+static_assert(static_cast<unsigned>(A::PLUGIN_ADDED) == 40);
+static constexpr uint64_t bit(A attr) { return uint64_t{1} << static_cast<unsigned>(attr); }
 static void require(bool ok, const char* message) {
     if (!ok) throw std::runtime_error(message);
+}
+static void suffixAttributes(const F::Base* base, uint64_t expected) {
+    require(base && (base->attributes() & (uint64_t{63} << 35)) == expected,
+        "CPP_METADATA_ATTRIBUTE_SUFFIX_BITS");
 }
 static std::vector<char> load(const char* path) {
     std::ifstream input(path, std::ios::binary);
@@ -36,6 +49,11 @@ static uint32_t functionByName(const F::CHIRPackage* p, const std::string& name)
         if (f->base()->srcCodeIdentifier()->str() == name) return i + 1;
     }
     throw std::runtime_error("function not found: " + name);
+}
+template<class T> static const T* valueAt(const F::CHIRPackage* p, uint32_t id, F::ValueElem tag) {
+    require(id > 0 && id <= p->values()->size(), "attribute value reference range");
+    require(p->values_type()->Get(id - 1) == tag, "attribute value reference tag");
+    return static_cast<const T*>(p->values()->Get(id - 1));
 }
 template<class T> static const T* typeAt(const F::CHIRPackage* p, uint32_t id, F::TypeElem tag) {
     require(id > 0 && id <= p->types()->size(), "type reference range");
@@ -67,6 +85,24 @@ static Ids inspect(const F::CHIRPackage* p, bool remapped) {
     require(child.value->base()->instanceMemberVars()->size() == 1 &&
         parent.value->base()->instanceMemberVars()->size() == 1, "member count control");
     std::cout << "CPP_METADATA_INDEPENDENT_CONTROLS_PASS\n";
+    const auto defaults = classByName(p, "JavaDefaults");
+    const auto defaultMethodId = functionByName(p, "defaultMethod");
+    const auto* defaultMethod = valueAt<F::Function>(p, defaultMethodId, F::ValueElem_Function);
+    require(defaults.value->base()->methods()->size() == 1 &&
+        defaults.value->base()->methods()->Get(0) == defaultMethodId, "default method reference");
+    const auto plugin = bit(A::PLUGIN_ADDED);
+    suffixAttributes(defaults.value->base()->base(), plugin | bit(A::JAVA_HAS_DEFAULT));
+    suffixAttributes(parent.value->base()->base(), plugin | (remapped ? bit(A::PREVIOUSLY_DESERIALIZED) : 0));
+    suffixAttributes(defaultMethod->base()->base()->base(), plugin | bit(A::DOES_NOT_THROW));
+    suffixAttributes(child.value->base()->base(), plugin | bit(A::OBJ_C_EXPORT));
+    const auto* pattern = valueAt<F::Function>(p, functionByName(p, "pattern"), F::ValueElem_Function);
+    const auto* patternGroup = valueAt<F::BlockGroup>(p, pattern->body(), F::ValueElem_BlockGroup);
+    require(patternGroup->blocks()->size() == 3, "pattern block count control");
+    for (auto id : *patternGroup->blocks()) {
+        const auto* block = valueAt<F::Block>(p, id, F::ValueElem_Block);
+        suffixAttributes(block->base()->base(), plugin | (id == patternGroup->entryBlock() ? bit(A::MATCH_PATTERN) : 0));
+    }
+    std::cout << "CPP_METADATA_ATTRIBUTE_SUFFIX_PASS\n";
     require(p->phase() == F::Phase_RAW, "in-memory plugin RAW contract");
     require(child.value->base()->instanceMemberVars()->Get(0)->outerDef() == child.id, "child member outerDef");
     require(parent.value->base()->instanceMemberVars()->Get(0)->outerDef() == parent.id, "parent member outerDef");

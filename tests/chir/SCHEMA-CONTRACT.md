@@ -111,3 +111,21 @@ public cjc compiling the CHIR package crashed in the installed runtime before
 field assertions. The fixed runtime input must be resolved by its owner before
 resuming these dynamic checks. No runtime/compiler/schema replacement, full stdx
 install, or platform qualification follows from the finite source checks.
+# 20261025 attribute suffix and native-call compatibility
+
+`schema_metadata.cj` transports JavaHasDefault on an interface with a default
+method, DoesNotThrow on that method, ObjCExport on a class, MatchPattern on a
+pattern-evaluation block (with unmarked case/default bodies), and PluginAdded
+from normal package/builder constructors. After decoding, the reused parent
+declaration carries PreviouslyDeserialized in the remapped graph. This checks
+the compiler-origin marker's transport, not the compiler's reuse decision or
+Java/Objective-C lowering. All six attributes are checked for both presence
+and absence, against bits 35–40, before and after serialization.
+
+The independent metadata reader includes the official H's
+`cangjie/CHIR/IR/AttributeInfo.h`, asserts its fixed enum indices, and checks
+wire masks via that enum. Compile it using the same H include root as the
+installed `flatbuffers/StdxChirFormat_generated.h`. The old 21 intrinsic tags,
+four Lambda cases, vtable metadata, and reference-remapping assertions remain.
+Both CJ fixtures call the canonical `@C freeSerializedMemory` in `unsafe`
+context; they still release the shared serialization builder.

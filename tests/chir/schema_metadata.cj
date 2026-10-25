@@ -26,7 +26,20 @@ func metadataClass(pkg: Package, name: String): ClassLikeDef {
     throw CHIRException("missing metadata class " + name)
 }
 
-func checkMetadata(pkg: Package): Unit {
+// These suffix bits are fixed by compiler 41b22350 / official 20261025 H.
+// Check positive AND absent attributes, not just a writer/reader echo.
+func checkSuffixAttributes(node: Base, expected: UInt64): Unit {
+    let attrs = [Attribute.JavaHasDefault, Attribute.PreviouslyDeserialized,
+        Attribute.DoesNotThrow, Attribute.ObjCExport, Attribute.MatchPattern, Attribute.PluginAdded]
+    assert((node._attributes.getRawAttrs() & (UInt64(63) << 35)) == expected,
+        "METADATA_ATTRIBUTE_SUFFIX_BITS")
+    for (i in 0..attrs.size) {
+        assert(node._attributes.testAttr(attrs[i]) == ((expected & (UInt64(1) << (35 + i))) != 0),
+            "METADATA_ATTRIBUTE_SEMANTIC_${i}")
+    }
+}
+
+func checkMetadata(pkg: Package, reused!: Bool = false): Unit {
     assert(pkg.name == "schema_metadata", "METADATA_PACKAGE_CONTROL")
     let child = metadataClass(pkg, "Child")
     let parent = metadataClass(pkg, "Parent")
@@ -36,6 +49,21 @@ func checkMetadata(pkg: Package): Unit {
     let original = FuncType.get([generic], generic)
     assert(child.instanceVars.size == 1 && parent.instanceVars.size == 1, "METADATA_MEMBER_CONTROL")
     println("METADATA_INDEPENDENT_CONTROLS_PASS")
+    let plugin = UInt64(1) << 40
+    let defaults = metadataClass(pkg, "JavaDefaults")
+    assert(!defaults.isClass() && defaults.methods.size == 1, "METADATA_JAVA_INTERFACE_CONTROL")
+    assert(refEq(defaults.methods[0], metadataFunction(pkg, "defaultMethod")), "METADATA_DEFAULT_METHOD_REFERENCE")
+    checkSuffixAttributes(defaults, plugin | (UInt64(1) << 35))
+    checkSuffixAttributes(parent, plugin | (if (reused) { UInt64(1) << 36 } else { UInt64(0) }))
+    checkSuffixAttributes(metadataFunction(pkg, "defaultMethod"), plugin | (UInt64(1) << 37))
+    checkSuffixAttributes(child, plugin | (UInt64(1) << 38))
+    let patternGroup = metadataFunction(pkg, "pattern").body.getOrThrow()
+    checkSuffixAttributes(patternGroup.entryBlock, plugin | (UInt64(1) << 39))
+    let patternBranch = (patternGroup.entryBlock.exprs[0] as MultiBranch).getOrThrow()
+    assert(patternBranch.caseValues[0] == UInt64(7), "METADATA_PATTERN_VALUE_CONTROL")
+    checkSuffixAttributes(patternBranch.defaultTarget, plugin)
+    checkSuffixAttributes(patternBranch.targetsWithoutDefault[0], plugin)
+    println("METADATA_ATTRIBUTE_SUFFIX_PASS")
     assert(refEq(child.instanceVars[0].outerDef, child), "METADATA_CHILD_OUTER_DEF")
     assert(refEq(parent.instanceVars[0].outerDef, parent), "METADATA_PARENT_OUTER_DEF")
     assert(child.superClass.getOrThrow() == parent.ty, "METADATA_PARENT_REFERENCE")
@@ -74,7 +102,7 @@ func checkMetadata(pkg: Package): Unit {
     println("METADATA_MODEL_ASSERTIONS_PASS")
 }
 
-func emitMetadata(label: String, pkg: Package): Package {
+func emitMetadata(label: String, pkg: Package, reused!: Bool = false): Package {
     let (pointer, length) = serializePackage(pkg)
     print(label + ":")
     for (i in 0..length) {
@@ -83,8 +111,8 @@ func emitMetadata(label: String, pkg: Package): Package {
     }
     println("")
     let decoded = deserializePackage(pointer, length)
-    checkMetadata(decoded)
-    freeSerializedMemory()
+    checkMetadata(decoded, reused: reused)
+    unsafe { freeSerializedMemory() }
     return decoded
 }
 
@@ -98,6 +126,31 @@ main(): Int64 {
     child.appendInstanceMemberVar("childField", IntType.getInt64())
     parent.appendInstanceMemberVar("parentField", BoolType.get())
     let unitSignature = FuncType.get(Array<Type>(), UnitType.get())
+    // Compiler-origin FFI attributes belong to declarations, not vtable integers.
+    // This is metadata transport; no Java/Objective-C lowering is claimed.
+    let defaults = pkg.addClass("JavaDefaults", "JavaDefaults", false)
+    defaults._attributes.setAttr(Attribute.JavaForeign, true)
+    defaults._attributes.setAttr(Attribute.JavaHasDefault, true)
+    let defaultMethod = pkg.addFunction(unitSignature, "defaultMethod", "defaultMethod", pkg.name)
+    defaults.appendMethod(defaultMethod)
+    defaultMethod._attributes.setAttr(Attribute.DoesNotThrow, true)
+    let defaultBody = defaultMethod.addBody()
+    let defaultEntry = defaultBody.appendBlock()
+    defaultBody.setEntryBlock(defaultEntry)
+    CHIRBuilder(defaultEntry).createExit()
+    child._attributes.setAttr(Attribute.ObjCExport, true)
+    // A pattern-evaluation block is marked; its case/default bodies stay unmarked.
+    let pattern = pkg.addFunction(unitSignature, "pattern", "pattern", pkg.name)
+    let patternBody = pattern.addBody()
+    let patternEntry = patternBody.appendBlock()
+    let patternDefault = patternBody.appendBlock()
+    let patternCase = patternBody.appendBlock()
+    patternBody.setEntryBlock(patternEntry)
+    patternEntry._attributes.setAttr(Attribute.MatchPattern, true)
+    CHIRBuilder(patternDefault).createExit()
+    CHIRBuilder(patternCase).createExit()
+    CHIRBuilder(patternEntry).createMultiBranch(IntLiteral.get(IntType.getInt64(), UInt64(7)),
+        patternDefault, ArrayList<Block>([patternCase]), ArrayList<UInt64>([UInt64(7)]))
     let transport = pkg.addFunction(unitSignature, "transport", "transport", pkg.name)
     let generic = GenericType.get("schema_metadata.G", "G")
     let signature = FuncType.get([IntType.getInt64()], IntType.getInt64())
@@ -136,9 +189,15 @@ main(): Int64 {
     // The vtable still owns the implementation reference: the real serializer
     // queue must discover and retain it, assigning fresh IDs.
     let padding = decoded.addFunction(unitSignature, "padding", "padding", decoded.name)
-    decoded._functions = ArrayList<Function>([padding, metadataFunction(decoded, "transport")])
-    decoded._classDefs = ArrayList<ClassLikeDef>([metadataClass(decoded, "Parent"), metadataClass(decoded, "Child")])
-    emitMetadata("METADATA_BYTES_REMAPPED", decoded)
+    decoded._functions = ArrayList<Function>([padding, metadataFunction(decoded, "transport"),
+        metadataFunction(decoded, "defaultMethod"), metadataFunction(decoded, "pattern")])
+    decoded._classDefs = ArrayList<ClassLikeDef>([metadataClass(decoded, "Parent"), metadataClass(decoded, "Child"),
+        metadataClass(decoded, "JavaDefaults")])
+    // Carry the compiler-origin reuse marker on the already decoded declaration.
+    // The fixture does not claim to implement the compiler's reuse decision.
+    metadataClass(decoded, "Parent")._attributes.setAttr(Attribute.PreviouslyDeserialized, true)
+    checkMetadata(decoded, reused: true)
+    emitMetadata("METADATA_BYTES_REMAPPED", decoded, reused: true)
     println("METADATA_ROUNDTRIP_PASS")
     return 0
 }
