@@ -266,6 +266,13 @@ function(make_cangjie_lib target_name)
         # All shared libraries of standard library are placed in the same location. Adding $ORIGIN into RPATH so
         # standard libraries can find each other.
         if(NOT CMAKE_SKIP_RPATH AND ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+            if(CANGJIE_LIBRARY_IS_MACRO AND NOT CMAKE_CROSSCOMPILING)
+                # Match the native cjc --compile-macro runtime binding: the
+                # selected SDK must precede private macro dependencies. The
+                # macro loader checks this first RPATH before initialization.
+                list(APPEND flags_to_compile
+                    ${LINKER_OPTION_PREFIX}-rpath="$ENV{CANGJIE_HOME}/runtime/lib/${output_cj_lib_dir}")
+            endif()
             list(APPEND flags_to_compile ${LINKER_OPTION_PREFIX}--disable-new-dtags ${LINKER_OPTION_PREFIX}-rpath="\\$$ORIGIN")
             if(CANGJIE_LIBRARY_IS_MACRO)
                 # The native default stages this same macro in modules/<tuple>/stdx.
