@@ -707,9 +707,33 @@ add_cangjie_library(
     DEPENDS ${STDX_DEPENDENCIES})
 
 if(NOT CANGJIE_CJPM_BUILD_TYPE AND NOT CANGJIE_BUILD_WITHOUT_CHIR)
+    set(to_string_macro_install INSTALL)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING AND NOT CMAKE_SKIP_RPATH)
+        # cjc --compile-macro binds its first RPATH to the producer SDK. Keep
+        # that image for build consumers; install a normally linked native image
+        # using the same object pipeline as actors.macros and plugin.
+        set(to_string_macro_install)
+        add_cangjie_library(
+            cangjie${BACKEND_TYPE}ChirToStringMacroInstall
+            NO_SUB_PKG IS_PACKAGE IS_CJNATIVE_BACKEND NO_INSTALL_CJO
+            OUTPUT_DIR install-macros
+            PACKAGE_NAME "chir.to_string_macro"
+            MODULE_NAME "stdx"
+            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/stdx/chir/to_string_macro
+            DEPENDS ${CHIR_TOSTRING_MACRO_DEPENDENCIES})
+        make_cangjie_lib(
+            chir.to_string_macro IS_SHARED IS_MACRO
+            DEPENDS cangjie${BACKEND_TYPE}ChirToStringMacroInstall
+            CANGJIE_STD_LIB_LINK std-core std-ast std-collection
+            OBJECTS ${output_cj_object_dir}/stdx/install-macros/chir.to_string_macro.o)
+        foreach(variant static dynamic)
+            install(FILES ${output_cj_object_dir}/stdx/install-macros/stdx.chir.to_string_macro.cjo
+                DESTINATION "${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH}/${variant}/stdx")
+        endforeach()
+    endif()
     add_cangjie_macro_library_in_local(
         cangjie${BACKEND_TYPE}ChirToStringMacro
-        INSTALL
+        ${to_string_macro_install}
         NO_SUB_PKG
         PACKAGE_NAME "chir.to_string_macro"
         MODULE_NAME "stdx"

@@ -270,8 +270,9 @@ function(make_cangjie_lib target_name)
                 # Match the native cjc --compile-macro runtime binding: the
                 # selected SDK must precede private macro dependencies. The
                 # macro loader checks this first RPATH before initialization.
-                list(APPEND flags_to_compile
+                set(macro_build_runtime_rpath
                     ${LINKER_OPTION_PREFIX}-rpath="$ENV{CANGJIE_HOME}/runtime/lib/${output_cj_lib_dir}")
+                list(APPEND flags_to_compile ${macro_build_runtime_rpath})
             endif()
             list(APPEND flags_to_compile ${LINKER_OPTION_PREFIX}--disable-new-dtags ${LINKER_OPTION_PREFIX}-rpath="\\$$ORIGIN")
             if(CANGJIE_LIBRARY_IS_MACRO)
@@ -393,9 +394,45 @@ function(make_cangjie_lib target_name)
     endif()
 
     if(CANGJIE_LIBRARY_IS_SHARED)
-        install(FILES ${target_lib_full_name} DESTINATION ${output_stdx_cj_lib_dir}/dynamic/stdx)
+        set(install_lib_full_name ${target_lib_full_name})
+        if(CANGJIE_LIBRARY_IS_MACRO AND NOT CMAKE_CROSSCOMPILING
+           AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_SKIP_RPATH)
+            # Build-tree macros bind the build SDK. Installed macros live under
+            # <sdk>/stdx/<tuple>/<variant>/stdx and must bind that SDK after a move.
+            # Link a normal install image from the same objects; never rewrite a DSO.
+            set(macro_install_runtime_path)
+            foreach(variant static dynamic)
+                file(RELATIVE_PATH relative_runtime
+                    "${CMAKE_INSTALL_PREFIX}/${output_stdx_cj_lib_dir}/${variant}/stdx"
+                    "${CMAKE_INSTALL_PREFIX}/../runtime/lib/${output_cj_lib_dir}")
+                if(macro_install_runtime_path AND
+                   NOT macro_install_runtime_path STREQUAL relative_runtime)
+                    message(FATAL_ERROR "Macro install variants require different runtime paths")
+                endif()
+                set(macro_install_runtime_path "${relative_runtime}")
+            endforeach()
+            set(install_flags_to_compile ${flags_to_compile})
+            list(REMOVE_ITEM install_flags_to_compile ${macro_build_runtime_rpath})
+            list(PREPEND install_flags_to_compile
+                ${LINKER_OPTION_PREFIX}-rpath="\\$$ORIGIN/${macro_install_runtime_path}")
+            get_filename_component(macro_file_name "${target_lib_full_name}" NAME)
+            set(install_lib_full_name
+                "${CMAKE_BINARY_DIR}/install-macros/${output_stdx_cj_lib_dir}/${macro_file_name}")
+            add_custom_command(
+                OUTPUT ${install_lib_full_name}
+                COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "${CMAKE_BINARY_DIR}/install-macros/${output_stdx_cj_lib_dir}"
+                COMMAND ${CMAKE_COMMAND} -E env ${set_env_path} ${clang_compiler}
+                    ${CANGJIE_LIBRARY_OBJECTS} ${force_link_archives_option}
+                    ${CANGJIE_LIBRARY_FLAGS} ${link_std_libraries_flag}
+                    ${install_flags_to_compile} -o ${install_lib_full_name}
+                DEPENDS ${target_lib_full_name}
+                COMMENT "Linking installed macro ${target_name}")
+            add_custom_target(install_macro_${target_name} ALL DEPENDS ${install_lib_full_name})
+        endif()
+        install(FILES ${install_lib_full_name} DESTINATION ${output_stdx_cj_lib_dir}/dynamic/stdx)
         if(CANGJIE_LIBRARY_IS_MACRO)
-            install(FILES ${target_lib_full_name} DESTINATION ${output_stdx_cj_lib_dir}/static/stdx)
+            install(FILES ${install_lib_full_name} DESTINATION ${output_stdx_cj_lib_dir}/static/stdx)
         endif()
     endif()
 endfunction()
