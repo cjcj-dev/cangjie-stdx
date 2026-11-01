@@ -269,9 +269,11 @@ function(make_cangjie_lib target_name)
             list(APPEND flags_to_compile ${LINKER_OPTION_PREFIX}--disable-new-dtags ${LINKER_OPTION_PREFIX}-rpath="\\$$ORIGIN")
             if(CANGJIE_LIBRARY_IS_MACRO)
                 # The native default stages this same macro in modules/<tuple>/stdx.
+                # Static installs load macro dependencies from dynamic/stdx.
                 # Keep its installed sibling lookup and also locate build libraries
                 # when a public SDK launcher replaces the outer loader environment.
                 list(APPEND flags_to_compile
+                    ${LINKER_OPTION_PREFIX}-rpath="\\$$ORIGIN/../../dynamic/stdx"
                     ${LINKER_OPTION_PREFIX}-rpath="\\$$ORIGIN/../../../lib/${output_stdx_cj_lib_dir}")
             endif()
         endif()
@@ -287,7 +289,9 @@ function(make_cangjie_lib target_name)
             endif()
             list(APPEND flags_to_compile -rpath "@loader_path")
             if(CANGJIE_LIBRARY_IS_MACRO)
-                list(APPEND flags_to_compile -rpath "@loader_path/../../../lib/${output_stdx_cj_lib_dir}")
+                list(APPEND flags_to_compile
+                    -rpath "@loader_path/../../dynamic/stdx"
+                    -rpath "@loader_path/../../../lib/${output_stdx_cj_lib_dir}")
             endif()
         endif()
 

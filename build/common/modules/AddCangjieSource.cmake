@@ -234,6 +234,16 @@ execute_process(
     else()
         set_target_properties(${target_name} PROPERTIES CJ_OUTPUT_FILE ${output_full_name})
     endif()
+
+    # --compile-macro produces a host image. Only the native target pair belongs
+    # in the install; private HOST_CLOSURE outputs and cross-build host images
+    # must never be published as target libraries.
+    if(CANGJIELIB_INSTALL AND NOT CANGJIELIB_HOST_CLOSURE AND NOT CMAKE_CROSSCOMPILING)
+        foreach(variant static dynamic)
+            install(FILES ${output_cjo_full_name} ${output_full_name}
+                DESTINATION "${output_cj_lib_dir}${SANITIZER_SUBPATH}/${variant}/stdx")
+        endforeach()
+    endif()
 endfunction()
 
 function(add_cangjie_library target_name

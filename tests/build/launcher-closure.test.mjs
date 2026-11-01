@@ -193,7 +193,15 @@ configuration_only("\${CMAKE_SOURCE_DIR}")
     assert(!commands.includes('/host-closure/'),'native default remains target-native');
     assert(commands.includes('ORIGIN/../../../lib/'+tuple),'staged native macro can locate target build libs');
    }
-   assert(fs.readFileSync(dir+'/src/cmake_install.cmake','utf8').includes('lib-macro_stdx.plugin'),'normal target macro install retained');
+   const install=fs.readFileSync(dir+'/src/cmake_install.cmake','utf8');
+   assert(install.includes('lib-macro_stdx.plugin'),'normal target macro install retained');
+   assert(!install.includes('/host-closure/'),'private host artifacts are not installed');
+   if(!cross){
+    assert(install.includes('stdx.chir.to_string_macro.cjo')&&install.includes('lib-macro_stdx.chir.to_string_macro.so'),'native macro CJO and image are installed together');
+    assert(commands.includes('ORIGIN/../../dynamic/stdx'),'installed static macro can locate dynamic target dependencies');
+   }else{
+    assert(!install.includes('lib-macro_stdx.chir.to_string_macro.so'),'cross-build host macro is not installed as a target image');
+   }
   };
   try{
    run('explicit-configure',publicBuild);check('explicit',build,true);

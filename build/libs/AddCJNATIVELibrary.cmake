@@ -709,6 +709,7 @@ add_cangjie_library(
 if(NOT CANGJIE_CJPM_BUILD_TYPE AND NOT CANGJIE_BUILD_WITHOUT_CHIR)
     add_cangjie_macro_library_in_local(
         cangjie${BACKEND_TYPE}ChirToStringMacro
+        INSTALL
         NO_SUB_PKG
         PACKAGE_NAME "chir.to_string_macro"
         MODULE_NAME "stdx"
